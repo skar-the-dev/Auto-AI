@@ -159,6 +159,18 @@ label {display:grid;gap:6px;color:var(--muted)}
 
 
 <section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Ask Anything</h2><span class="tag">Live research</span></div>
+  <p>Ask about gaming, people, history, science, technology, current events and more. Auto AI searches the web, builds an answer and lists the sources it found.</p>
+  <form id="askForm">
+    <label>Your question
+      <input id="askQuestion" required maxlength="500" placeholder="e.g. What are NICKMERCS' 10 greatest gaming achievements?">
+    </label>
+    <button type="submit" id="askButton">Research my question</button>
+  </form>
+  <div id="askResult" class="notice" style="display:none;margin-top:16px"></div>
+</section>
+
+<section class="panel" style="margin-top:24px">
   <div class="row"><h2>Batch Studio</h2><span class="tag">Maximum 6</span></div>
   <p>Generate up to six AI-written script drafts for one active account at a time. These are scripts, not finished video files; video rendering is a separate step.</p>
   <form id="batchForm">
@@ -779,6 +791,67 @@ async function deleteSavedScript(item) {
     showMessage("Could not delete script: " + error.message, true);
   }
 }
+
+$("#askForm").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("#askButton");
+  const result = $("#askResult");
+  const question = $("#askQuestion").value.trim();
+  if (!question) return;
+  button.disabled = true;
+  button.textContent = "Researching...";
+  result.style.display = "block";
+  result.textContent = "Searching for useful sources and checking the evidence...";
+  try {
+    const data = await apiRequest("/api/ask", {
+      method: "POST",
+      body: JSON.stringify({ question })
+    });
+    result.replaceChildren();
+    const heading = document.createElement("h3");
+    heading.textContent = "Research answer";
+    const confidence = document.createElement("div");
+    confidence.className = "tag";
+    confidence.textContent = "Evidence confidence: " + data.confidence.toUpperCase();
+    const answer = document.createElement("div");
+    answer.style.whiteSpace = "pre-wrap";
+    answer.style.lineHeight = "1.65";
+    answer.style.marginTop = "12px";
+    answer.textContent = data.answer;
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = data.coverage_note;
+    const sourceHeading = document.createElement("h3");
+    sourceHeading.textContent = "Sources found";
+    sourceHeading.style.marginTop = "18px";
+    const sourceList = document.createElement("ol");
+    sourceList.style.paddingLeft = "22px";
+    (data.sources || []).forEach(source => {
+      const item = document.createElement("li");
+      item.style.margin = "9px 0";
+      const link = document.createElement("a");
+      link.href = source.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "[" + source.number + "] " + source.title;
+      link.style.color = "#a9bcff";
+      const extract = document.createElement("div");
+      extract.className = "muted";
+      extract.textContent = source.extract;
+      item.append(link, extract);
+      sourceList.append(item);
+    });
+    const footer = document.createElement("p");
+    footer.className = "muted";
+    footer.textContent = "Researched " + new Date(data.researched_at).toLocaleString() + ". " + data.limitations;
+    result.append(heading, confidence, answer, note, sourceHeading, sourceList, footer);
+  } catch (error) {
+    result.textContent = "Could not research this question: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Research my question";
+  }
+};
 
 $("#ideaForm").onsubmit = async event => {
   event.preventDefault();
