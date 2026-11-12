@@ -683,11 +683,49 @@ async function loadScriptLibrary() {
       actions.className = "actions";
       const view = makeButton("View script", "secondary");
       view.onclick = () => {
-        $("#ideaNiche").value = item.niche;
-        $("#ideaTopic").value = item.topic;
-        $("#ideaResult").style.display = "block";
-        $("#ideaResult").textContent = item.script.voiceover || item.title;
-        window.scrollTo({ top: $("#ideaResult").getBoundingClientRect().top + window.scrollY - 20, behavior: "smooth" });
+        const existing = card.querySelector(".saved-script-detail");
+        if (existing) {
+          existing.remove();
+          view.textContent = "View script";
+          return;
+        }
+        const detail = document.createElement("div");
+        detail.className = "saved-script-detail notice";
+        detail.style.marginTop = "12px";
+        const addSection = (heading, value) => {
+          if (!value) return;
+          const title = document.createElement("strong");
+          title.textContent = heading;
+          const text = document.createElement("p");
+          text.style.whiteSpace = "pre-wrap";
+          text.style.lineHeight = "1.55";
+          text.textContent = value;
+          detail.append(title, text);
+        };
+        addSection("Video style", item.script.video_style || "Style not recorded");
+        addSection("Opening hook", item.script.hook);
+        addSection("FULL VOICEOVER", item.script.voiceover || "No voiceover text was saved in this script.");
+        addSection("Caption", item.script.caption);
+        if (Array.isArray(item.script.production_notes)) addSection("Production notes", item.script.production_notes.join("\\n"));
+        if (Array.isArray(item.script.sources) && item.script.sources.length) {
+          const heading = document.createElement("strong");
+          heading.textContent = "Research sources";
+          detail.append(heading);
+          item.script.sources.forEach(source => {
+            const link = document.createElement("a");
+            link.href = source.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = source.title;
+            link.style.display = "block";
+            link.style.color = "#a9bcff";
+            link.style.margin = "8px 0";
+            detail.append(link);
+          });
+        }
+        card.append(detail);
+        view.textContent = "Hide script";
+        detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
       };
       const queue = makeButton("Queue for production", "secondary");
       queue.onclick = () => queueScript(item);
