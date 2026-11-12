@@ -84,15 +84,53 @@ async function searchWikipedia(query) {
   })).filter(item => item.title && item.snippet);
 }
 
-async function searchWeb(query) {
-  let results = await searchDuckDuckGo(query);
-  if (results.length < 3) {
-    const fallback = await searchWikipedia(query);
-    for (const item of fallback) {
-      if (!results.some(existing => existing.url === item.url)) results.push(item);
-    }
+function buildSearchQueries(question) {
+  const queries = [question];
+  const achievementIntent = /greatest|achievement|career|milestone|accomplish|top\s*\d+/i.test(question);
+  if (/nick\s*mercs|nickmercs/i.test(question) && achievementIntent) {
+    queries.push(
+      '"NICKMERCS" career achievements tournament results',
+      '"NICKMERCS" Fortnite tournament placements Liquipedia',
+      '"NICKMERCS" Warzone tournament results wins',
+      '"NICKMERCS" Gears of War championship'
+    );
   }
-  return results.slice(0, 7);
+  return [...new Set(queries)].slice(0, 5);
+}
+
+async function searchWeb(query) {
+  const queries = buildSearchQueries(query);
+  const batches = await Promise.all(queries.map(async searchQuery => {
+    const [webResults, wikiResults] = await Promise.all([
+      searchDuckDuckGo(searchQuery).catch(() => []),
+      searchWikipedia(searchQuery).catch(() => [])
+    ]);
+    return [...webResults, ...wikiResults].map(item => ({ ...item, query: searchQuery }));
+  }));
+  const combined = batches.flat();
+  const seen = new Set();
+  const unique = combined.filter(item => {
+    try {
+      const url = new URL(item.url);
+      url.hash = "";
+      const key = url.toString().replace(/\/$/, "");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    } catch { return false; }
+  });
+  const score = item => {
+    const text = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
+    let points = 0;
+    if (/liquipedia|esports earnings|escharts|twitchtracker|tracker network/.test(text)) points += 5;
+    if (/epicgames|fortnite.com|callofduty.com|activision/.test(text)) points += 5;
+    if (/tournament|championship|placement|win|achievement|career|earnings|prize/.test(text)) points += 3;
+    if (/nickmercs|nick mercs/.test(text)) points += 4;
+    if (/modern warfare ii|video game\)/.test(text)) points -= 2;
+    if (/wikipedia/.test(item.url)) points -= 1;
+    return points;
+  };
+  return unique.sort((a, b) => score(b) - score(a)).slice(0, 12);
 }
 
 function parseAnswer(result) {
@@ -131,7 +169,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const evidence = sources.map((source, index) =>
-      "[" + (index + 1) + "] " + source.title + "\nURL: " + source.url + "\nSearch extract: " + source.snippet
+      "[" + (index + 1) + "] " + source.title + "\nURL: " + source.url + "\nSearch query: " + (source.query || question) + "\nSearch extract: " + source.snippet
     ).join("\n\n");
 
     const prompt = `Answer the user's question using ONLY the research extracts supplied below.
@@ -147,7 +185,7 @@ RULES:
 - For "best", "greatest" or "top" questions, state the criteria and date/period. Do not pretend a subjective ranking is an official ranking.
 - For current rankings or news, state the date of the evidence. If extracts do not establish current status, say so.
 - Never invent names, dates, scores, prizes, quotes or achievements.
-- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
+- Prefer sources directly about the named person and requested achievement. Ignore superficially related game pages that do not discuss the person.\n- For a requested top 10, provide ten only if ten distinct, evidenced achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
 - If the sources do not contain enough evidence to answer, say exactly what is missing instead of guessing.
 - Return JSON only: {"answer":"clear answer in markdown with citations","confidence":"high|medium|low","coverage_note":"short honest limitation or why evidence is sufficient","key_points":["..."]}.`;
     const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
@@ -172,7 +210,7 @@ RULES:
       confidence,
       coverage_note: String(answer.coverage_note || "Search extracts are not a full verification of every source.").slice(0, 1200),
       key_points: Array.isArray(answer.key_points) ? answer.key_points.slice(0, 8).map(item => String(item).slice(0, 400)) : [],
-      sources: sources.map((source, index) => ({ number: index + 1, title: source.title, url: source.url, extract: source.snippet })),
+      sources: sources.map((source, index) => ({ number: index + 1, title: source.title, url: source.url, extract: source.snippet, search_query: source.query || question })),
       researched_at: new Date().toISOString(),
       research_method: "Live web search extracts + Cloudflare Workers AI synthesis",
       limitations: "Auto AI has read search-result extracts, not necessarily every full article. Check primary sources for important decisions."
