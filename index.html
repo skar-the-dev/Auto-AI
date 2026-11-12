@@ -186,6 +186,23 @@ label {display:grid;gap:6px;color:var(--muted)}
 </section>
 
 
+
+<section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Video Creator</h2><span class="tag">On-device test</span></div>
+  <p>Turn a saved script into a short vertical video draft on this device. This first test renders animated backgrounds and scene captions; voiceover, stock footage and cloud saving are not connected yet.</p>
+  <label>Saved script
+    <select id="renderScript">
+      <option value="">Choose a saved script</option>
+    </select>
+  </label>
+  <button type="button" id="renderVideo">Create vertical video draft</button>
+  <div id="renderStatus" class="notice" style="display:none"></div>
+  <video id="renderPreview" controls playsinline style="display:none;width:100%;max-width:360px;border-radius:14px;margin-top:12px;background:#000"></video>
+  <a id="downloadVideo" style="display:none;color:#a9bcff;font-weight:700;margin-top:12px" download>Download video draft</a>
+  <canvas id="renderCanvas" width="360" height="640" style="display:none"></canvas>
+</section>
+
+
 <section class="panel" style="margin-top:24px">
   <div class="row"><h2>Video Library</h2><span class="tag" id="scriptCount">0 saved</span></div>
   <p>Scripts saved here stay in your Cloudflare database. Track each one from draft to completed.</p>
@@ -621,6 +638,13 @@ async function loadScriptLibrary() {
   try {
     const data = await apiRequest("/api/scripts");
     savedScripts = data.scripts || [];
+    const renderSelect = $("#renderScript");
+    if (renderSelect) {
+      const previous = renderSelect.value;
+      renderSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => renderSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previous)) renderSelect.value = previous;
+    }
     $("#scriptCount").textContent = savedScripts.length + " saved";
     container.replaceChildren();
 
@@ -832,6 +856,125 @@ $("#batchForm").onsubmit = async event => {
   } finally {
     button.disabled = false;
     button.textContent = "Create batch drafts";
+  }
+};
+
+
+$("#renderVideo").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#renderStatus");
+  const button = $("#renderVideo");
+  if (!item) {
+    status.style.display = "block";
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    status.style.display = "block";
+    status.textContent = "This browser does not support on-device video recording. Try the latest Safari on your iPhone.";
+    return;
+  }
+
+  const canvas = $("#renderCanvas");
+  const ctx = canvas.getContext("2d");
+  const script = item.script || {};
+  const scenes = Array.isArray(script.scenes) && script.scenes.length
+    ? script.scenes
+    : [{ text: script.hook || item.title }, { text: script.voiceover || item.topic }];
+  const lines = scenes.map(scene => String(scene.text || scene.visual || "").trim()).filter(Boolean);
+  if (!lines.length) lines.push(item.title);
+
+  const mimeTypes = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+  if (!mimeType) {
+    status.style.display = "block";
+    status.textContent = "This browser cannot record a supported video format.";
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Rendering on your iPhone...";
+  status.style.display = "block";
+  status.textContent = "Preparing a 9:16 silent visual draft. Keep this page open until rendering finishes.";
+
+  let stream;
+  let recorder;
+  const chunks = [];
+  try {
+    stream = canvas.captureStream(24);
+    recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1800000 });
+    recorder.ondataavailable = event => { if (event.data && event.data.size) chunks.push(event.data); };
+    const finished = new Promise((resolve, reject) => {
+      recorder.onstop = resolve;
+      recorder.onerror = () => reject(new Error("The browser stopped recording unexpectedly."));
+    });
+    recorder.start(250);
+
+    const duration = 2400;
+    const start = performance.now();
+    let frame = 0;
+    await new Promise(resolve => {
+      const draw = now => {
+        const elapsed = now - start;
+        const index = Math.min(lines.length - 1, Math.floor(elapsed / duration));
+        const local = (elapsed % duration) / duration;
+        const hue = (220 + index * 29) % 360;
+        const gradient = ctx.createLinearGradient(0, 0, 360, 640);
+        gradient.addColorStop(0, "hsl(" + hue + " 55% 23%)");
+        gradient.addColorStop(1, "hsl(" + ((hue + 38) % 360) + " 60% 8%)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 360, 640);
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.beginPath();
+        ctx.arc(300, 100, 60 + Math.sin(now / 500) * 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#9db6ff";
+        ctx.font = "bold 16px system-ui";
+        ctx.fillText("AUTO AI  •  " + (index + 1) + "/" + lines.length, 26, 52);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 28px system-ui";
+        const words = lines[index].split(/\s+/);
+        let line = "";
+        let y = 275;
+        for (const word of words) {
+          const test = line ? line + " " + word : word;
+          if (ctx.measureText(test).width > 300 && line) {
+            ctx.fillText(line, 28, y);
+            line = word;
+            y += 38;
+          } else line = test;
+        }
+        if (line) ctx.fillText(line, 28, y);
+        ctx.fillStyle = "rgba(255,255,255,0.75)";
+        ctx.font = "15px system-ui";
+        ctx.fillText("Follow for more", 26, 590);
+        frame++;
+        if (elapsed < lines.length * duration) requestAnimationFrame(draw);
+        else resolve();
+      };
+      requestAnimationFrame(draw);
+    });
+    await new Promise(resolve => setTimeout(resolve, 300));
+    recorder.stop();
+    await finished;
+    const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const url = URL.createObjectURL(blob);
+    const preview = $("#renderPreview");
+    preview.src = url;
+    preview.style.display = "block";
+    const link = $("#downloadVideo");
+    link.href = url;
+    link.download = item.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() + "." + ext;
+    link.textContent = "Download " + ext.toUpperCase() + " video draft";
+    link.style.display = "inline-block";
+    status.textContent = "Video draft created on this device (" + ext.toUpperCase() + "). This is a silent visual draft; voiceover, real footage and cloud library storage are not connected yet.";
+  } catch (error) {
+    status.textContent = "Could not render this video: " + error.message + ". Try again with a shorter script and keep Auto AI open.";
+  } finally {
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    button.disabled = false;
+    button.textContent = "Create vertical video draft";
   }
 };
 
