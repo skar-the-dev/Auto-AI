@@ -157,6 +157,35 @@ label {display:grid;gap:6px;color:var(--muted)}
 </section>
 
 
+
+<section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Batch Studio</h2><span class="tag">Maximum 6</span></div>
+  <p>Create up to six script drafts for one active account at a time. These are planning drafts, not finished video files; the video renderer is still to be connected.</p>
+  <form id="batchForm">
+    <label>Account
+      <select id="batchAccount" required>
+        <option value="">Choose an active account</option>
+      </select>
+    </label>
+    <label>Batch topic
+      <input id="batchTopic" required maxlength="180" placeholder="e.g. Interesting facts about space">
+    </label>
+    <label>Number of drafts
+      <select id="batchCount">
+        <option value="1">1 draft</option>
+        <option value="2">2 drafts</option>
+        <option value="3">3 drafts</option>
+        <option value="4">4 drafts</option>
+        <option value="5">5 drafts</option>
+        <option value="6" selected>6 drafts (maximum)</option>
+      </select>
+    </label>
+    <button type="submit" id="batchButton">Create batch drafts</button>
+  </form>
+  <div id="batchResult" class="notice" style="display:none"></div>
+</section>
+
+
 <section class="panel" style="margin-top:24px">
   <div class="row"><h2>Video Library</h2><span class="tag" id="scriptCount">0 saved</span></div>
   <p>Scripts saved here stay in your Cloudflare database. Track each one from draft to completed.</p>
@@ -311,6 +340,13 @@ async function loadAccounts() {
 
 function render() {
   $("#total").textContent = accounts.length;
+  const batchSelect = $("#batchAccount");
+  if (batchSelect) {
+    const previous = batchSelect.value;
+    batchSelect.replaceChildren(new Option("Choose an active account", ""));
+    accounts.filter(account => account.active).forEach(account => batchSelect.add(new Option(account.name + " — " + account.niche, account.id)));
+    if (accounts.some(account => account.id === previous && account.active)) batchSelect.value = previous;
+  }
 
   $("#active").textContent =
     accounts.filter(account => account.active).length;
@@ -771,6 +807,34 @@ $("#ideaForm").onsubmit = async event => {
     button.textContent = "Create script outline";
   }
 };
+
+$("#batchForm").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("#batchButton");
+  const result = $("#batchResult");
+  button.disabled = true;
+  button.textContent = "Creating drafts...";
+  result.style.display = "block";
+  result.textContent = "Preparing your batch...";
+  try {
+    const data = await apiRequest("/api/batch", {
+      method: "POST",
+      body: JSON.stringify({
+        account_id: $("#batchAccount").value,
+        topic: $("#batchTopic").value.trim(),
+        count: Number($("#batchCount").value)
+      })
+    });
+    result.textContent = data.message + " Open Video Library to review them.";
+    await loadScriptLibrary();
+  } catch (error) {
+    result.textContent = "Batch could not be created: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create batch drafts";
+  }
+};
+
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
