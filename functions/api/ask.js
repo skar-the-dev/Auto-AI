@@ -7,13 +7,13 @@ function json(data, status = 200) {
 
 function stripHtml(value) {
   return String(value || "")
-    .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
     .replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
-    .replace(/\\s+/g, " ").trim();
+    .replace(/\s+/g, " ").trim();
 }
 
 function decodeUrl(value) {
@@ -36,13 +36,13 @@ async function searchWeb(query) {
   if (!response.ok) throw new Error("Web search is temporarily unavailable (" + response.status + ").");
   const html = await response.text();
   const results = [];
-  const blocks = html.match(/<div class="result[^>]*>[\\s\\S]*?<\\/div>\\s*<\\/div>/gi) || [];
+  const blocks = html.match(/<div class="result[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi) || [];
   for (const block of blocks) {
-    const linkMatch = block.match(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/i);
+    const linkMatch = block.match(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
     if (!linkMatch) continue;
     const url = decodeUrl(linkMatch[1]);
-    if (!/^https?:\\/\\//i.test(url) || /duckduckgo\\.com/i.test(new URL(url).hostname)) continue;
-    const snippetMatch = block.match(/class="result__snippet"[^>]*>([\\s\\S]*?)<\\/div>/i);
+    if (!/^https?:\/\//i.test(url) || /duckduckgo\.com/i.test(new URL(url).hostname)) continue;
+    const snippetMatch = block.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
     const title = stripHtml(linkMatch[2]).slice(0, 220);
     const snippet = stripHtml(snippetMatch?.[1] || "").slice(0, 700);
     if (title && snippet && !results.some(item => item.url === url)) {
@@ -89,8 +89,8 @@ export async function onRequestPost({ request, env }) {
     }
 
     const evidence = sources.map((source, index) =>
-      "[" + (index + 1) + "] " + source.title + "\\nURL: " + source.url + "\\nSearch extract: " + source.snippet
-    ).join("\\n\\n");
+      "[" + (index + 1) + "] " + source.title + "\nURL: " + source.url + "\nSearch extract: " + source.snippet
+    ).join("\n\n");
 
     const prompt = `Answer the user's question using ONLY the research extracts supplied below.
 QUESTION: ${question}
