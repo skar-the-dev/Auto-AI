@@ -180,6 +180,11 @@ label {display:grid;gap:6px;color:var(--muted)}
         <option value="6" selected>6 drafts (maximum)</option>
       </select>
     </label>
+    <div>
+      <strong>Choose a style for each video</strong>
+      <p class="muted" style="margin:6px 0 10px">Give every draft its own format. You can mix styles in one batch.</p>
+      <div id="batchStyles" style="display:grid;gap:9px"></div>
+    </div>
     <button type="submit" id="batchButton">Create batch drafts</button>
   </form>
   <div id="batchResult" class="notice" style="display:none"></div>
@@ -869,6 +874,37 @@ $("#ideaForm").onsubmit = async event => {
   }
 };
 
+const batchStyleOptions = [
+  ["curiosity", "Curiosity hook"],
+  ["facts", "Facts / list"],
+  ["story", "Story"],
+  ["list", "Quick list"],
+  ["gaming", "Gaming highlights"],
+  ["reddit_story", "Reddit-style story"],
+  ["motivation", "Motivation"],
+  ["cinematic", "Cinematic storytelling"],
+  ["mystery", "Mystery / shocking story"]
+];
+function renderBatchStyles() {
+  const count = Number($("#batchCount").value || 1);
+  const holder = $("#batchStyles");
+  if (!holder) return;
+  const previous = [...holder.querySelectorAll("select")].map(select => select.value);
+  holder.replaceChildren();
+  for (let i = 0; i < count; i++) {
+    const label = document.createElement("label");
+    label.textContent = "Video " + (i + 1) + " style";
+    const select = document.createElement("select");
+    select.dataset.videoStyle = String(i);
+    batchStyleOptions.forEach(([value, title]) => select.add(new Option(title, value)));
+    select.value = previous[i] || batchStyleOptions[i % batchStyleOptions.length][0];
+    label.append(select);
+    holder.append(label);
+  }
+}
+$("#batchCount").addEventListener("change", renderBatchStyles);
+renderBatchStyles();
+
 $("#batchForm").onsubmit = async event => {
   event.preventDefault();
   const button = $("#batchButton");
@@ -883,7 +919,8 @@ $("#batchForm").onsubmit = async event => {
       body: JSON.stringify({
         account_id: $("#batchAccount").value,
         topic: $("#batchTopic").value.trim(),
-        count: Number($("#batchCount").value)
+        count: Number($("#batchCount").value),
+        styles: [...$("#batchStyles").querySelectorAll("select")].map(select => select.value)
       })
     });
     result.textContent = data.message + " Open Video Library to review them.";
