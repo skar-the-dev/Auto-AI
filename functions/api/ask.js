@@ -98,6 +98,22 @@ function buildSearchQueries(question) {
   return [...new Set(queries)].slice(0, 5);
 }
 
+async function fetchResearchPage(url, query) {
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AutoAIResearch/1.0)", "Accept": "text/html" },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const title = stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || url);
+    const description = stripHtml(html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i)?.[1] || "");
+    const body = stripHtml(html.replace(/<nav[\s\S]*?<\/nav>/gi, " ").replace(/<footer[\s\S]*?<\/footer>/gi, " "));
+    if (!body || !/nick\s*mercs|nickmercs/i.test(title + " " + description + " " + body.slice(0, 16000))) return null;
+    return { title, url, snippet: (description + " " + body).slice(0, 6500), query, full_text: true };
+  } catch { return null; }
+}
+
 async function searchWeb(query) {
   const queries = buildSearchQueries(query);
   const batches = await Promise.all(queries.map(async searchQuery => {
@@ -105,9 +121,22 @@ async function searchWeb(query) {
       searchDuckDuckGo(searchQuery).catch(() => []),
       searchWikipedia(searchQuery).catch(() => [])
     ]);
-    return [...webResults, ...wikiResults].map(item => ({ ...item, query: searchQuery }));
+    const filtered = [...webResults, ...wikiResults].filter(item =>
+      /nick\s*mercs|nickmercs/i.test(item.title + " " + item.snippet + " " + item.url)
+    );
+    return filtered.map(item => ({ ...item, query: searchQuery }));
   }));
   const combined = batches.flat();
+  if (/nick\s*mercs|nickmercs/i.test(query)) {
+    const urls = [
+      "https://liquipedia.net/fortnite/NICKMERCS",
+      "https://liquipedia.net/fortnite/NICKMERCS/Results",
+      "https://liquipedia.net/callofduty/NICKMERCS",
+      "https://liquipedia.net/apexlegends/NICKMERCS"
+    ];
+    const direct = await Promise.all(urls.map(url => fetchResearchPage(url, "NICKMERCS career tournament achievements")));
+    combined.push(...direct.filter(Boolean));
+  }
   const seen = new Set();
   const unique = combined.filter(item => {
     try {
@@ -119,18 +148,7 @@ async function searchWeb(query) {
       return true;
     } catch { return false; }
   });
-  const score = item => {
-    const text = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
-    let points = 0;
-    if (/liquipedia|esports earnings|escharts|twitchtracker|tracker network/.test(text)) points += 5;
-    if (/epicgames|fortnite.com|callofduty.com|activision/.test(text)) points += 5;
-    if (/tournament|championship|placement|win|achievement|career|earnings|prize/.test(text)) points += 3;
-    if (/nickmercs|nick mercs/.test(text)) points += 4;
-    if (/modern warfare ii|video game\)/.test(text)) points -= 2;
-    if (/wikipedia/.test(item.url)) points -= 1;
-    return points;
-  };
-  return unique.sort((a, b) => score(b) - score(a)).slice(0, 12);
+  return unique.slice(0, 12);
 }
 
 function parseAnswer(result) {
@@ -185,7 +203,7 @@ RULES:
 - For "best", "greatest" or "top" questions, state the criteria and date/period. Do not pretend a subjective ranking is an official ranking.
 - For current rankings or news, state the date of the evidence. If extracts do not establish current status, say so.
 - Never invent names, dates, scores, prizes, quotes or achievements.
-- Prefer sources directly about the named person and requested achievement. Ignore superficially related game pages that do not discuss the person.\n- For a requested top 10, provide ten only if ten distinct, evidenced achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
+- Every source must directly identify the person named in the question. Exclude unrelated people, games, generic award pages and search results that merely mention the topic in passing.\n- For a requested top 10, provide ten only if ten distinct, evidenced achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- For a requested top 10, provide ten only if ten distinct, evidenced achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
 - If the sources do not contain enough evidence to answer, say exactly what is missing instead of guessing.
 - Return JSON only: {"answer":"clear answer in markdown with citations","confidence":"high|medium|low","coverage_note":"short honest limitation or why evidence is sufficient","key_points":["..."]}.`;
     const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
