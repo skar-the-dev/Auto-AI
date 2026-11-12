@@ -3,7 +3,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Auto AI">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml">
 <title>Auto AI</title>
 <style>
 :root {
@@ -104,6 +110,11 @@ label {display:grid;gap:6px;color:var(--muted)}
   </div>
   <button id="add">＋ Add account</button>
 </header>
+
+<section class="notice" id="installHelp">
+  <strong>Install Auto AI on your iPhone</strong>
+  <p style="margin:6px 0 0">In Safari, tap Share, then “Add to Home Screen” to use Auto AI like an app. Your dashboard and saved data remain online.</p>
+</section>
 
 <div id="message" class="notice" role="status"></div>
 
@@ -760,6 +771,12 @@ $("#ideaForm").onsubmit = async event => {
     button.textContent = "Create script outline";
   }
 };
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
 
 loadAccounts();
 loadScriptLibrary();
