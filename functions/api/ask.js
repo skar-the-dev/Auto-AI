@@ -7,13 +7,13 @@ function json(data, status = 200) {
 
 function stripHtml(value) {
   return String(value || "")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
+    .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
     .replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ").trim();
+    .replace(/\\s+/g, " ").trim();
 }
 
 function decodeUrl(value) {
@@ -24,33 +24,75 @@ function decodeUrl(value) {
   } catch { return ""; }
 }
 
-async function searchWeb(query) {
-  const endpoint = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query);
-  const response = await fetch(endpoint, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; AutoAIResearch/1.0)",
-      "Accept": "text/html"
-    },
-    signal: AbortSignal.timeout(12000)
-  });
-  if (!response.ok) throw new Error("Web search is temporarily unavailable (" + response.status + ").");
-  const html = await response.text();
-  const results = [];
-  const blocks = html.match(/<div class="result[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi) || [];
-  for (const block of blocks) {
-    const linkMatch = block.match(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-    if (!linkMatch) continue;
-    const url = decodeUrl(linkMatch[1]);
-    if (!/^https?:\/\//i.test(url) || /duckduckgo\.com/i.test(new URL(url).hostname)) continue;
-    const snippetMatch = block.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i);
-    const title = stripHtml(linkMatch[2]).slice(0, 220);
-    const snippet = stripHtml(snippetMatch?.[1] || "").slice(0, 700);
-    if (title && snippet && !results.some(item => item.url === url)) {
-      results.push({ title, url, snippet });
-    }
-    if (results.length >= 7) break;
+async function searchDuckDuckGo(query) {
+  const urls = [
+    "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query),
+    "https://lite.duckduckgo.com/lite/?q=" + encodeURIComponent(query)
+  ];
+  for (const endpoint of urls) {
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; AutoAIResearch/1.0)",
+          "Accept": "text/html,application/xhtml+xml"
+        },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!response.ok) continue;
+      const html = await response.text();
+      const anchors = html.match(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi) || [];
+      const results = [];
+      for (const anchor of anchors) {
+        if (!/class=["'][^"']*result__a/i.test(anchor)) continue;
+        const href = anchor.match(/href=["']([^"']+)["']/i)?.[1];
+        const url = decodeUrl(href || "");
+        if (!/^https?:\\/\\//i.test(url)) continue;
+        const host = new URL(url).hostname;
+        if (/duckduckgo\\.com|google\\.com|bing\\.com/i.test(host)) continue;
+        const title = stripHtml(anchor).slice(0, 220);
+        const after = html.slice(html.indexOf(anchor) + anchor.length, html.indexOf(anchor) + anchor.length + 1800);
+        const snippetMatch = after.match(/class=["'][^"']*(?:result__snippet|result-snippet|snippet)[^"']*["'][^>]*>([\\s\\S]*?)<\\/[^>]+>/i);
+        const snippet = stripHtml(snippetMatch?.[1] || "").slice(0, 700);
+        if (title && !results.some(item => item.url === url)) {
+          results.push({ title, url, snippet: snippet || "Search result found; open the source to verify its contents." });
+        }
+        if (results.length >= 7) break;
+      }
+      if (results.length) return results;
+    } catch {}
   }
-  return results;
+  return [];
+}
+
+async function searchWikipedia(query) {
+  const endpoint = new URL("https://en.wikipedia.org/w/api.php");
+  endpoint.search = new URLSearchParams({
+    action: "query", list: "search", srsearch: query,
+    srlimit: "5", format: "json", origin: "*"
+  }).toString();
+  const response = await fetch(endpoint, {
+    headers: { "User-Agent": "AutoAIResearch/1.0 (https://auto-ai-c8y.pages.dev)" },
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!response.ok) return [];
+  const data = await response.json();
+  const hits = data?.query?.search || [];
+  return hits.slice(0, 5).map(hit => ({
+    title: stripHtml(hit.title),
+    url: "https://en.wikipedia.org/wiki/" + encodeURIComponent(hit.title.replace(/ /g, "_")),
+    snippet: stripHtml(hit.snippet).slice(0, 700)
+  })).filter(item => item.title && item.snippet);
+}
+
+async function searchWeb(query) {
+  let results = await searchDuckDuckGo(query);
+  if (results.length < 3) {
+    const fallback = await searchWikipedia(query);
+    for (const item of fallback) {
+      if (!results.some(existing => existing.url === item.url)) results.push(item);
+    }
+  }
+  return results.slice(0, 7);
 }
 
 function parseAnswer(result) {
