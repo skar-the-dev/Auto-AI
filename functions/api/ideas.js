@@ -91,6 +91,18 @@ export async function generateScript(env, niche, topic, style = "curiosity") {
   if (!env?.AI || typeof env.AI.run !== "function") {
     throw new Error("Workers AI is not available yet. Check the AI binding and redeploy the Pages project.");
   }
+  const styleGuides = {
+    curiosity: "Open with a powerful curiosity gap, tease an unexpected answer, then reveal it clearly.",
+    facts: "Deliver concise, specific facts in a numbered or clearly separated list. Avoid generic filler.",
+    story: "Tell a coherent mini-story with a beginning, rising tension, turning point and satisfying ending.",
+    list: "Use a fast-paced countdown or quick list with distinct, useful points.",
+    gaming: "Use gaming language and energetic commentary. Focus on gameplay moments, clutch plays, fails, challenges or gaming culture. Do not invent footage or events.",
+    reddit_story: "Tell it like an engaging Reddit story read aloud: first-person or community-post framing, natural conversational language, escalating tension and a clear ending. Do not pretend a fictional story is a real Reddit post.",
+    motivation: "Create an uplifting, practical motivational short with a strong opening, relatable struggle and actionable takeaway. Avoid empty slogans.",
+    cinematic: "Use cinematic storytelling: vivid but truthful imagery, deliberate pacing, dramatic scene progression and a memorable final line.",
+    mystery: "Build suspense around a genuine unanswered question or verified mystery, reveal what is known, and clearly distinguish evidence from speculation."
+  };
+  const styleGuide = styleGuides[style] || styleGuides.curiosity;
   const sources = await researchTopic(topic, niche);
   const evidence = sources.map((source, index) =>
     `SOURCE ${index + 1}: ${source.title}\nURL: ${source.url}\nEXCERPT: ${source.extract}`
@@ -99,6 +111,8 @@ export async function generateScript(env, niche, topic, style = "curiosity") {
 Niche: ${niche}
 Topic: ${topic}
 Style: ${style}
+STYLE DIRECTION (follow this format, not just the label): ${styleGuide}
+Make the hook, voiceover, scene visuals, captions and ending visibly match this style. Do not use the same generic structure for every style.
 
 RESEARCH MATERIAL (retrieved from Wikipedia; treat as limited reference material, not guaranteed truth):
 ${evidence || "No relevant source extracts were retrieved."}
