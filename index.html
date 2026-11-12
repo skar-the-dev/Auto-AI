@@ -401,60 +401,7 @@ async function updateAccount(account, changes) {
       body: JSON.stringify(changes)
     });
 
-    await 
-$("#ideaForm").onsubmit = async event => {
-  event.preventDefault();
-  const button = $("#ideaButton");
-  const result = $("#ideaResult");
-  button.disabled = true;
-  button.textContent = "Creating...";
-  result.style.display = "block";
-  result.textContent = "Building your outline...";
-  try {
-    const response = await apiRequest("/api/ideas", {
-      method: "POST",
-      body: JSON.stringify({
-        niche: $("#ideaNiche").value,
-        topic: $("#ideaTopic").value,
-        style: $("#ideaStyle").value
-      })
-    });
-    const script = response.script;
-    result.replaceChildren();
-    const heading = document.createElement("h3");
-    heading.textContent = script.title;
-    result.append(heading);
-    for (const [label, value] of [
-      ["Hook", script.hook],
-      ["Voiceover draft", script.voiceover],
-      ["Caption", script.caption],
-      ["Production notes", script.production_notes.join(" ")]
-    ]) {
-      const title = document.createElement("strong");
-      title.textContent = label;
-      const text = document.createElement("p");
-      text.style.whiteSpace = "pre-wrap";
-      text.textContent = value;
-      result.append(title, text);
-    }
-    const disclosure = document.createElement("p");
-    disclosure.className = "muted";
-    disclosure.textContent = script.disclosure;
-    result.append(disclosure);
-    script.scenes.forEach(scene => {
-      const line = document.createElement("p");
-      line.textContent = scene.time + " — " + scene.visual + " — " + scene.text;
-      result.append(line);
-    });
-  } catch (error) {
-    result.textContent = "Could not create outline: " + error.message;
-  } finally {
-    button.disabled = false;
-    button.textContent = "Create script outline";
-  }
-};
-
-loadAccounts();
+    await loadAccounts();
     showMessage("Account updated successfully.");
   } catch (error) {
     showMessage("Could not update account: " + error.message, true);
@@ -547,6 +494,64 @@ $("#form").onsubmit = async event => {
     showMessage("Could not save account: " + error.message, true);
   } finally {
     setBusy(false);
+  }
+};
+
+
+$("#ideaForm").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("#ideaButton");
+  const result = $("#ideaResult");
+  button.disabled = true;
+  button.textContent = "Creating...";
+  result.style.display = "block";
+  result.textContent = "Building your outline...";
+
+  try {
+    const response = await apiRequest("/api/ideas", {
+      method: "POST",
+      body: JSON.stringify({
+        niche: $("#ideaNiche").value,
+        topic: $("#ideaTopic").value,
+        style: $("#ideaStyle").value
+      })
+    });
+    const script = response.script;
+    result.replaceChildren();
+
+    const heading = document.createElement("h3");
+    heading.textContent = script.title;
+    result.append(heading);
+
+    for (const [label, value] of [
+      ["Hook", script.hook],
+      ["Voiceover draft", script.voiceover],
+      ["Caption", script.caption],
+      ["Production notes", script.production_notes.join(" ")]
+    ]) {
+      const title = document.createElement("strong");
+      title.textContent = label;
+      const paragraph = document.createElement("p");
+      paragraph.style.whiteSpace = "pre-wrap";
+      paragraph.textContent = value;
+      result.append(title, paragraph);
+    }
+
+    const disclosure = document.createElement("p");
+    disclosure.className = "muted";
+    disclosure.textContent = script.disclosure;
+    result.append(disclosure);
+
+    script.scenes.forEach(scene => {
+      const line = document.createElement("p");
+      line.textContent = scene.time + " — " + scene.visual + " — " + scene.text;
+      result.append(line);
+    });
+  } catch (error) {
+    result.textContent = "Could not create outline: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create script outline";
   }
 };
 
