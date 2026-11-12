@@ -145,6 +145,15 @@ label {display:grid;gap:6px;color:var(--muted)}
   <div id="ideaResult" class="notice" style="display:none;margin-top:16px"></div>
 </section>
 
+
+<section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Video Library</h2><span class="tag" id="scriptCount">0 saved</span></div>
+  <p>Scripts saved here stay in your Cloudflare database. Track each one from draft to completed.</p>
+  <div id="scriptLibrary" class="grid">
+    <div class="muted">Loading your saved scripts...</div>
+  </div>
+</section>
+
 <div class="row" style="margin-top:28px">
   <h2>Your channels</h2>
   <span class="muted">Saved in Cloudflare</span>
@@ -210,6 +219,8 @@ label {display:grid;gap:6px;color:var(--muted)}
 const API = "/api/accounts";
 
 let accounts = [];
+let currentScript = null;
+let savedScripts = [];
 let editingId = null;
 let busy = false;
 
@@ -498,6 +509,101 @@ $("#form").onsubmit = async event => {
 };
 
 
+
+async function loadScriptLibrary() {
+  const container = $("#scriptLibrary");
+  try {
+    const data = await apiRequest("/api/scripts");
+    savedScripts = data.scripts || [];
+    $("#scriptCount").textContent = savedScripts.length + " saved";
+    container.replaceChildren();
+
+    if (!savedScripts.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "No saved scripts yet. Create an outline and tap Save to Video Library.";
+      container.append(empty);
+      return;
+    }
+
+    savedScripts.forEach(item => {
+      const card = document.createElement("article");
+      card.className = "account";
+      const title = document.createElement("h3");
+      title.textContent = item.title;
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      meta.textContent = item.niche + " • " + item.topic;
+      const status = document.createElement("select");
+      ["Draft", "Ready for production", "Completed"].forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        status.append(option);
+      });
+      status.value = item.status;
+      status.onchange = () => updateScriptStatus(item.id, status.value);
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const view = makeButton("View script", "secondary");
+      view.onclick = () => {
+        $("#ideaNiche").value = item.niche;
+        $("#ideaTopic").value = item.topic;
+        $("#ideaResult").style.display = "block";
+        $("#ideaResult").textContent = item.script.voiceover || item.title;
+        window.scrollTo({ top: $("#ideaResult").getBoundingClientRect().top + window.scrollY - 20, behavior: "smooth" });
+      };
+      const remove = makeButton("Delete", "danger");
+      remove.onclick = () => deleteSavedScript(item);
+      actions.append(view, remove);
+      card.append(title, meta, status, actions);
+      container.append(card);
+    });
+  } catch (error) {
+    container.textContent = "Could not load saved scripts: " + error.message;
+  }
+}
+
+async function saveCurrentScript() {
+  if (!currentScript) return;
+  try {
+    await apiRequest("/api/scripts", {
+      method: "POST",
+      body: JSON.stringify(currentScript)
+    });
+    showMessage("Script saved to your Video Library.");
+    await loadScriptLibrary();
+  } catch (error) {
+    showMessage("Could not save script: " + error.message, true);
+  }
+}
+
+async function updateScriptStatus(id, status) {
+  try {
+    await apiRequest("/api/scripts?id=" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    showMessage("Script status updated.");
+  } catch (error) {
+    showMessage("Could not update script: " + error.message, true);
+    await loadScriptLibrary();
+  }
+}
+
+async function deleteSavedScript(item) {
+  if (!confirm("Delete this saved script?")) return;
+  try {
+    await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+      method: "DELETE"
+    });
+    showMessage("Saved script deleted.");
+    await loadScriptLibrary();
+  } catch (error) {
+    showMessage("Could not delete script: " + error.message, true);
+  }
+}
+
 $("#ideaForm").onsubmit = async event => {
   event.preventDefault();
   const button = $("#ideaButton");
@@ -517,6 +623,12 @@ $("#ideaForm").onsubmit = async event => {
       })
     });
     const script = response.script;
+    currentScript = {
+      title: script.title,
+      niche: $("#ideaNiche").value.trim(),
+      topic: $("#ideaTopic").value.trim(),
+      script
+    };
     result.replaceChildren();
 
     const heading = document.createElement("h3");
@@ -547,6 +659,13 @@ $("#ideaForm").onsubmit = async event => {
       line.textContent = scene.time + " — " + scene.visual + " — " + scene.text;
       result.append(line);
     });
+
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = "Save to Video Library";
+    save.style.marginTop = "12px";
+    save.onclick = saveCurrentScript;
+    result.append(save);
   } catch (error) {
     result.textContent = "Could not create outline: " + error.message;
   } finally {
@@ -556,6 +675,7 @@ $("#ideaForm").onsubmit = async event => {
 };
 
 loadAccounts();
+loadScriptLibrary();
 </script>
 </body>
 </html>
