@@ -50,8 +50,11 @@ export async function onRequestPost({ request, env }) {
     const drafts = [];
     for (let i = 0; i < count; i++) {
       const scriptTopic = count === 1 ? topic : `${topic} — ${angles[i]}`;
-      const style = i % 2 === 0 ? "curiosity" : "facts";
+      const allowedStyles = new Set(["curiosity", "facts", "story", "list", "gaming", "reddit_story", "motivation", "cinematic", "mystery"]);
+      const requestedStyle = Array.isArray(body.styles) ? String(body.styles[i] || "") : "";
+      const style = allowedStyles.has(requestedStyle) ? requestedStyle : (i % 2 === 0 ? "curiosity" : "facts");
       const script = await generateScript(env, account.niche, scriptTopic, style);
+      script.video_style = style;
       drafts.push({ id: crypto.randomUUID(), topic: scriptTopic, script });
     }
 
