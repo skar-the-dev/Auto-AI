@@ -7,13 +7,13 @@ function json(data, status = 200) {
 
 function stripHtml(value) {
   return String(value || "")
-    .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
     .replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
-    .replace(/\\s+/g, " ").trim();
+    .replace(/\s+/g, " ").trim();
 }
 
 function decodeUrl(value) {
@@ -40,18 +40,18 @@ async function searchDuckDuckGo(query) {
       });
       if (!response.ok) continue;
       const html = await response.text();
-      const anchors = html.match(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi) || [];
+      const anchors = html.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi) || [];
       const results = [];
       for (const anchor of anchors) {
         if (!/class=["'][^"']*result__a/i.test(anchor)) continue;
         const href = anchor.match(/href=["']([^"']+)["']/i)?.[1];
         const url = decodeUrl(href || "");
-        if (!/^https?:\\/\\//i.test(url)) continue;
+        if (!/^https?:\/\//i.test(url)) continue;
         const host = new URL(url).hostname;
-        if (/duckduckgo\\.com|google\\.com|bing\\.com/i.test(host)) continue;
+        if (/duckduckgo\.com|google\.com|bing\.com/i.test(host)) continue;
         const title = stripHtml(anchor).slice(0, 220);
         const after = html.slice(html.indexOf(anchor) + anchor.length, html.indexOf(anchor) + anchor.length + 1800);
-        const snippetMatch = after.match(/class=["'][^"']*(?:result__snippet|result-snippet|snippet)[^"']*["'][^>]*>([\\s\\S]*?)<\\/[^>]+>/i);
+        const snippetMatch = after.match(/class=["'][^"']*(?:result__snippet|result-snippet|snippet)[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i);
         const snippet = stripHtml(snippetMatch?.[1] || "").slice(0, 700);
         if (title && !results.some(item => item.url === url)) {
           results.push({ title, url, snippet: snippet || "Search result found; open the source to verify its contents." });
