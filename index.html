@@ -154,6 +154,15 @@ label {display:grid;gap:6px;color:var(--muted)}
   </div>
 </section>
 
+
+<section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Production Queue</h2><span class="tag" id="jobCount">0 waiting</span></div>
+  <p>Saved scripts placed here are recorded for the video-rendering stage. They will wait here until a rendering worker is connected.</p>
+  <div id="productionQueue" class="grid">
+    <div class="muted">Loading production queue...</div>
+  </div>
+</section>
+
 <div class="row" style="margin-top:28px">
   <h2>Your channels</h2>
   <span class="muted">Saved in Cloudflare</span>
@@ -510,6 +519,56 @@ $("#form").onsubmit = async event => {
 
 
 
+
+async function loadProductionQueue() {
+  const container = $("#productionQueue");
+  try {
+    const data = await apiRequest("/api/jobs");
+    const jobs = data.jobs || [];
+    $("#jobCount").textContent = jobs.length + " waiting";
+    container.replaceChildren();
+
+    if (!jobs.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "Nothing queued yet. Use Queue for production on a saved script.";
+      container.append(empty);
+      return;
+    }
+
+    jobs.forEach(job => {
+      const card = document.createElement("article");
+      card.className = "account";
+      const title = document.createElement("h3");
+      title.textContent = job.title || "Saved script";
+      const detail = document.createElement("p");
+      detail.className = "muted";
+      detail.textContent = (job.niche || "No niche") + " • " + (job.topic || "");
+      const status = makeTag(job.status);
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = "Waiting for the video-rendering worker. No video has been rendered yet.";
+      card.append(title, detail, status, note);
+      container.append(card);
+    });
+  } catch (error) {
+    container.textContent = "Could not load production queue: " + error.message;
+  }
+}
+
+async function queueScript(item) {
+  try {
+    await apiRequest("/api/jobs", {
+      method: "POST",
+      body: JSON.stringify({ script_id: item.id })
+    });
+    showMessage("Script added to the production queue. It is waiting for the video renderer.");
+    await loadProductionQueue();
+  } catch (error) {
+    showMessage("Could not queue script: " + error.message, true);
+  }
+}
+
 async function loadScriptLibrary() {
   const container = $("#scriptLibrary");
   try {
@@ -553,9 +612,11 @@ async function loadScriptLibrary() {
         $("#ideaResult").textContent = item.script.voiceover || item.title;
         window.scrollTo({ top: $("#ideaResult").getBoundingClientRect().top + window.scrollY - 20, behavior: "smooth" });
       };
+      const queue = makeButton("Queue for production", "secondary");
+      queue.onclick = () => queueScript(item);
       const remove = makeButton("Delete", "danger");
       remove.onclick = () => deleteSavedScript(item);
-      actions.append(view, remove);
+      actions.append(view, queue, remove);
       card.append(title, meta, status, actions);
       container.append(card);
     });
@@ -702,6 +763,7 @@ $("#ideaForm").onsubmit = async event => {
 
 loadAccounts();
 loadScriptLibrary();
+loadProductionQueue();
 </script>
 </body>
 </html>
