@@ -782,6 +782,42 @@ $("#ideaForm").onsubmit = async event => {
       result.append(title, paragraph);
     }
 
+    const factStatus = document.createElement("div");
+    factStatus.className = "notice";
+    factStatus.textContent = script.fact_check_status === "source_supported_draft"
+      ? "Source-supported draft — claims were matched to retrieved extracts, but this is not a guarantee of accuracy."
+      : "Research incomplete — one or more claims could not be matched to the retrieved sources.";
+    result.append(factStatus);
+
+    if (Array.isArray(script.claim_checks) && script.claim_checks.length) {
+      const checksTitle = document.createElement("strong");
+      checksTitle.textContent = "Claim checks";
+      result.append(checksTitle);
+      script.claim_checks.forEach(check => {
+        const line = document.createElement("p");
+        line.textContent = (check.supported ? "✓ " : "⚠ ") + check.claim +
+          (check.source_numbers?.length ? " (source " + check.source_numbers.join(", ") + ")" : " (no supporting source)");
+        result.append(line);
+      });
+    }
+
+    if (Array.isArray(script.sources) && script.sources.length) {
+      const sourcesTitle = document.createElement("strong");
+      sourcesTitle.textContent = "Research sources";
+      result.append(sourcesTitle);
+      script.sources.forEach(source => {
+        const link = document.createElement("a");
+        link.href = source.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = source.title;
+        link.style.display = "block";
+        link.style.color = "#a9bcff";
+        link.style.margin = "6px 0";
+        result.append(link);
+      });
+    }
+
     const disclosure = document.createElement("p");
     disclosure.className = "muted";
     disclosure.textContent = script.disclosure;
