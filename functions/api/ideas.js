@@ -114,6 +114,17 @@ Style: ${style}
 STYLE DIRECTION (follow this format, not just the label): ${styleGuide}
 Make the hook, voiceover, scene visuals, captions and ending visibly match this style. Do not use the same generic structure for every style.
 
+VOICEOVER QUALITY RULES:
+- The spoken voiceover MUST contain 70–85 words, not counting the title or caption. This is essential for a natural 25–35 second narration.
+- Write a complete, engaging piece with a clear beginning, useful middle and satisfying ending. Do not pad with vague filler.
+- The first sentence must grab attention immediately. The final sentence must deliver a takeaway or natural call to action.
+- Use natural spoken English, short sentences and concrete details. Avoid repeating the topic or making empty claims such as "this changes everything".
+- Each of the five scenes must match the actual voiceover in order. Scene captions should be short and should not introduce facts absent from the narration.
+- For real-world viral clips, strange events or mysteries, describe only identifiable events supported by sources. Never invent a ghost, creature, camera recording, incident or viral video. If the topic is too broad or sources do not identify real examples, say evidence is limited and do not fabricate examples.
+- For Reddit-style stories, clearly label invented stories as fictional; never present them as a real post or true personal account unless the source establishes that.
+- For motivation, provide one practical action, not just slogans.
+- For gaming, do not invent named matches, players, scores or gameplay footage.
+
 RESEARCH MATERIAL (retrieved from Wikipedia; treat as limited reference material, not guaranteed truth):
 ${evidence || "No relevant source extracts were retrieved."}
 
@@ -155,10 +166,14 @@ Keep on-screen captions brief. Do not claim human fact-checking or certainty.`;
   const allSupported = checks.length > 0 && checks.every(item => item.supported && item.source_numbers.length > 0);
   const status = generated.fact_check_status === "source_supported_draft" && allSupported && sources.length
     ? "source_supported_draft" : "needs_research";
+  const voiceover = String(generated.voiceover).trim().slice(0, 5000);
+  const voiceoverWordCount = voiceover.split(/\\s+/).filter(Boolean).length;
   return {
     title: clean(generated.title) || `${topic}: ${niche} short`,
     hook: clean(generated.hook),
-    voiceover: String(generated.voiceover).trim().slice(0, 5000),
+    voiceover,
+    voiceover_word_count: voiceoverWordCount,
+    target_length_met: voiceoverWordCount >= 65 && voiceoverWordCount <= 95,
     scenes,
     caption: String(generated.caption || "").trim().slice(0, 1000),
     production_notes: Array.isArray(generated.production_notes) ? generated.production_notes.slice(0, 6).map(clean) : ["Check claims against the linked source extracts."],
