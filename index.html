@@ -1,34 +1,483 @@
+
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Auto AI</title>
 <style>
-:root{color-scheme:dark;--bg:#0b1020;--panel:#141c30;--line:#283550;--muted:#9ba9c3;--accent:#7c9cff;--green:#4bd6a0}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#172544,var(--bg) 48%);color:#f4f7ff;font:15px system-ui,-apple-system,sans-serif}
-main{max-width:1100px;margin:auto;padding:28px 18px}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:26px}
-h1{margin:0;font-size:30px}h1 span{color:var(--accent)}p{color:var(--muted)}button,input,select{font:inherit;border-radius:10px;border:1px solid var(--line);padding:11px 13px;background:#0e1628;color:#f4f7ff}
-button{cursor:pointer;background:var(--accent);color:#081126;border:0;font-weight:650}button.secondary{background:#202d47;color:#eaf0ff;border:1px solid var(--line)}button.danger{background:#462334;color:#ffdce5}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.panel,.account{background:#121b2e;border:1px solid var(--line);border-radius:16px;padding:18px}
-.stat{font-size:26px;font-weight:750}.muted{color:var(--muted);font-size:13px}.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}.account{display:flex;flex-direction:column;gap:12px}.account h3{margin:0}.tag{display:inline-block;background:#202d47;border-radius:20px;padding:5px 9px;font-size:12px;color:#cbd7f4}.row{display:flex;justify-content:space-between;align-items:center;gap:8px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{font-size:13px;padding:8px 10px}.status{color:var(--green)}dialog{background:#121b2e;color:#f4f7ff;border:1px solid var(--line);border-radius:16px;max-width:440px;width:calc(100% - 28px)}dialog::backdrop{background:#000a}form{display:grid;gap:12px}label{display:grid;gap:6px;color:var(--muted)}.checks{display:flex;gap:15px}.checks label{display:flex;align-items:center}
-</style></head>
-<body><main>
-<header><div><h1>Auto <span>AI</span></h1><p>Multi-account short-form content control centre</p></div><button id="add">＋ Add account</button></header>
+:root {
+  color-scheme: dark;
+  --bg:#0b1020;
+  --panel:#141c30;
+  --line:#283550;
+  --muted:#9ba9c3;
+  --accent:#7c9cff;
+  --green:#4bd6a0;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  background:radial-gradient(circle at top,#172544,var(--bg) 48%);
+  color:#f4f7ff;
+  font:15px system-ui,-apple-system,sans-serif;
+}
+main {max-width:1100px;margin:auto;padding:28px 18px}
+header {
+  display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:26px;
+}
+h1 {margin:0;font-size:30px}
+h1 span {color:var(--accent)}
+h2 {margin:0}
+h3 {margin:0}
+p {color:var(--muted)}
+button,input,select {
+  font:inherit;border-radius:10px;
+  border:1px solid var(--line);
+  padding:11px 13px;
+  background:#0e1628;color:#f4f7ff;
+}
+button {
+  cursor:pointer;background:var(--accent);
+  color:#081126;border:0;font-weight:650;
+}
+button:disabled {opacity:.5;cursor:wait}
+button.secondary {
+  background:#202d47;color:#eaf0ff;
+  border:1px solid var(--line);
+}
+button.danger {background:#462334;color:#ffdce5}
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  gap:14px;
+}
+.panel,.account {
+  background:#121b2e;border:1px solid var(--line);
+  border-radius:16px;padding:18px;
+}
+.stat {font-size:26px;font-weight:750}
+.muted {color:var(--muted);font-size:13px}
+.toolbar {display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}
+.account {display:flex;flex-direction:column;gap:12px}
+.tag {
+  display:inline-block;background:#202d47;
+  border-radius:20px;padding:5px 9px;
+  font-size:12px;color:#cbd7f4;
+}
+.row {
+  display:flex;justify-content:space-between;
+  align-items:center;gap:8px;
+}
+.actions {display:flex;gap:8px;flex-wrap:wrap}
+.actions button {font-size:13px;padding:8px 10px}
+.status {color:var(--green)}
+.error {color:#ff9cac}
+.notice {
+  padding:12px 14px;border-radius:10px;
+  background:#202d47;margin:16px 0;
+}
+dialog {
+  background:#121b2e;color:#f4f7ff;
+  border:1px solid var(--line);
+  border-radius:16px;max-width:440px;
+  width:calc(100% - 28px);
+}
+dialog::backdrop {background:#000a}
+form {display:grid;gap:12px}
+label {display:grid;gap:6px;color:var(--muted)}
+.checks {display:flex;gap:15px;flex-wrap:wrap}
+.checks label {display:flex;align-items:center}
+#message:empty {display:none}
+</style>
+</head>
+
+<body>
+<main>
+
+<header>
+  <div>
+    <h1>Auto <span>AI</span></h1>
+    <p>Multi-account short-form content control centre</p>
+  </div>
+  <button id="add">＋ Add account</button>
+</header>
+
+<div id="message" class="notice" role="status"></div>
+
 <section class="grid">
-<div class="panel"><div class="muted">Total accounts</div><div class="stat" id="total">0</div></div>
-<div class="panel"><div class="muted">Active accounts</div><div class="stat" id="active">0</div></div>
-<div class="panel"><div class="muted">Default schedule</div><div class="stat">4 hours</div><div class="muted">Independently configurable per account</div></div>
+  <div class="panel">
+    <div class="muted">Total accounts</div>
+    <div class="stat" id="total">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="muted">Active accounts</div>
+    <div class="stat" id="active">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="muted">Default schedule</div>
+    <div class="stat">4 hours</div>
+    <div class="muted">Independently configurable per account</div>
+  </div>
 </section>
-<div class="row" style="margin-top:28px"><h2>Your channels</h2><span class="muted">Saved in this browser</span></div>
-<div id="accounts" class="grid"></div>
-<p class="muted" style="margin-top:24px">Prototype only: accounts and schedules are stored locally in this browser. Video generation, cloud scheduling and social publishing are not connected yet.</p>
+
+<div class="row" style="margin-top:28px">
+  <h2>Your channels</h2>
+  <span class="muted">Saved in Cloudflare</span>
+</div>
+
+<div id="accounts" class="grid" style="margin-top:14px">
+  <div class="panel muted">Loading your channels...</div>
+</div>
+
+<p class="muted" style="margin-top:24px">
+  Auto AI cloud account dashboard. Video generation,
+  automated scheduling and social publishing still
+  need their separate integrations.
+</p>
+
 </main>
-<dialog id="modal"><form id="form"><h2 id="formTitle">Add account</h2><label>Account name<input name="name" required placeholder="e.g. Daily Viral Clips"></label><label>Content niche<input name="niche" required placeholder="e.g. Gaming, facts, motivation"></label><label>Publishing interval (minutes)<input name="interval" type="number" min="60" step="30" value="240" required></label><div class="checks"><label><input type="checkbox" name="youtube" checked> YouTube Shorts</label><label><input type="checkbox" name="tiktok" checked> TikTok</label></div><div class="actions"><button type="submit">Save account</button><button type="button" class="secondary" id="cancel">Cancel</button></div></form></dialog>
+
+<dialog id="modal">
+  <form id="form">
+    <h2 id="formTitle">Add account</h2>
+
+    <label>
+      Account name
+      <input name="name" required
+        placeholder="e.g. Daily Viral Clips">
+    </label>
+
+    <label>
+      Content niche
+      <input name="niche" required
+        placeholder="e.g. Gaming, facts, motivation">
+    </label>
+
+    <label>
+      Publishing interval (minutes)
+      <input name="interval" type="number"
+        min="60" max="10080" step="30"
+        value="240" required>
+    </label>
+
+    <div class="checks">
+      <label>
+        <input type="checkbox" name="youtube" checked>
+        YouTube Shorts
+      </label>
+
+      <label>
+        <input type="checkbox" name="tiktok" checked>
+        TikTok
+      </label>
+    </div>
+
+    <div class="actions">
+      <button type="submit" id="saveButton">Save account</button>
+      <button type="button" class="secondary" id="cancel">
+        Cancel
+      </button>
+    </div>
+  </form>
+</dialog>
+
 <script>
-const KEY='auto-ai-accounts-v1';let accounts=JSON.parse(localStorage.getItem(KEY)||'[]');let editing=null;
-const $=s=>document.querySelector(s);
-function save(){localStorage.setItem(KEY,JSON.stringify(accounts));render()}
-function render(){$('#total').textContent=accounts.length;$('#active').textContent=accounts.filter(a=>a.active).length;$('#accounts').innerHTML=accounts.length?'':'<div class="panel muted">No accounts yet. Tap “Add account” to create your first channel.</div>';accounts.forEach(a=>{const i=accounts.indexOf(a),el=document.createElement('article');el.className='account';el.innerHTML='<div class="row"><span class="tag">'+(a.active?'● Active':'Ⅱ Paused')+'</span><span class="muted">'+a.interval+' min</span></div><h3></h3><div class="muted"></div><div class="actions"><span class="tag">'+(a.youtube?'YouTube Shorts':'')+'</span><span class="tag">'+(a.tiktok?'TikTok':'')+'</span></div><div class="actions"><button class="secondary" data-act="toggle">'+(a.active?'Pause':'Resume')+'</button><button class="secondary" data-act="edit">Edit</button><button class="danger" data-act="delete">Delete</button></div>';el.querySelector('h3').textContent=a.name;el.querySelector('.muted').textContent=a.niche;el.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{if(b.dataset.act==='toggle'){a.active=!a.active;save()}if(b.dataset.act==='delete'&&confirm('Delete this account?')){accounts.splice(i,1);save()}if(b.dataset.act==='edit')openForm(i)});$('#accounts').append(el)})}
-function openForm(i=null){editing=i;$('#formTitle').textContent=i===null?'Add account':'Edit account';const f=$('#form');const a=i===null?{name:'',niche:'',interval:240,youtube:true,tiktok:true}:accounts[i];f.name.value=a.name;f.niche.value=a.niche;f.interval.value=a.interval;f.youtube.checked=a.youtube;f.tiktok.checked=a.tiktok;$('#modal').showModal()}
-$('#add').onclick=()=>openForm();$('#cancel').onclick=()=>$('#modal').close();$('#form').onsubmit=e=>{e.preventDefault();const f=e.currentTarget,a={name:f.name.value.trim(),niche:f.niche.value.trim(),interval:Number(f.interval.value),youtube:f.youtube.checked,tiktok:f.tiktok.checked,active:editing===null?true:accounts[editing].active};if(editing===null)accounts.push(a);else accounts[editing]=a;save();$('#modal').close()};render();
-</script></body></html>
+const API = "/api/accounts";
+
+let accounts = [];
+let editingId = null;
+let busy = false;
+
+const $ = selector => document.querySelector(selector);
+
+function showMessage(message, error = false) {
+  const box = $("#message");
+  box.textContent = message;
+  box.className = error ? "notice error" : "notice";
+}
+
+function setBusy(value) {
+  busy = value;
+  $("#add").disabled = value;
+  $("#saveButton").disabled = value;
+}
+
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data.success === false) {
+    throw new Error(data.error || "The request failed.");
+  }
+
+  return data;
+}
+
+function normaliseAccount(account) {
+  const platforms = Array.isArray(account.platforms)
+    ? account.platforms
+    : [];
+
+  return {
+    id: account.id,
+    name: account.name || "",
+    niche: account.niche || "",
+    interval: Number(account.interval_minutes || 240),
+    youtube: platforms.includes("youtube"),
+    tiktok: platforms.includes("tiktok"),
+    active: Boolean(account.active)
+  };
+}
+
+async function loadAccounts() {
+  try {
+    showMessage("Connecting to your cloud database...");
+
+    const data = await apiRequest(API);
+
+    accounts = (data.accounts || []).map(normaliseAccount);
+
+    render();
+    showMessage("Your channels are loaded from Cloudflare.");
+  } catch (error) {
+    showMessage("Could not load accounts: " + error.message, true);
+    $("#accounts").innerHTML =
+      '<div class="panel muted">Unable to load your channels. Please refresh and try again.</div>';
+  }
+}
+
+function render() {
+  $("#total").textContent = accounts.length;
+
+  $("#active").textContent =
+    accounts.filter(account => account.active).length;
+
+  const container = $("#accounts");
+  container.replaceChildren();
+
+  if (!accounts.length) {
+    const empty = document.createElement("div");
+    empty.className = "panel muted";
+    empty.textContent =
+      "No accounts yet. Tap Add account to create your first channel.";
+    container.append(empty);
+    return;
+  }
+
+  accounts.forEach(account => {
+    const card = document.createElement("article");
+    card.className = "account";
+
+    const top = document.createElement("div");
+    top.className = "row";
+
+    const state = document.createElement("span");
+    state.className = "tag";
+    state.textContent = account.active ? "● Active" : "Ⅱ Paused";
+
+    const interval = document.createElement("span");
+    interval.className = "muted";
+    interval.textContent = account.interval + " min";
+
+    top.append(state, interval);
+
+    const name = document.createElement("h3");
+    name.textContent = account.name;
+
+    const niche = document.createElement("div");
+    niche.className = "muted";
+    niche.textContent = account.niche;
+
+    const platforms = document.createElement("div");
+    platforms.className = "actions";
+
+    if (account.youtube) {
+      platforms.append(makeTag("YouTube Shorts"));
+    }
+
+    if (account.tiktok) {
+      platforms.append(makeTag("TikTok"));
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const toggle = makeButton(
+      account.active ? "Pause" : "Resume",
+      "secondary"
+    );
+
+    toggle.onclick = () => updateAccount(account, {
+      active: !account.active
+    });
+
+    const edit = makeButton("Edit", "secondary");
+    edit.onclick = () => openForm(account.id);
+
+    const remove = makeButton("Delete", "danger");
+    remove.onclick = () => deleteAccount(account);
+
+    actions.append(toggle, edit, remove);
+    card.append(top, name, niche, platforms, actions);
+    container.append(card);
+  });
+}
+
+function makeTag(text) {
+  const tag = document.createElement("span");
+  tag.className = "tag";
+  tag.textContent = text;
+  return tag;
+}
+
+function makeButton(text, className) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = text;
+  return button;
+}
+
+function openForm(id = null) {
+  editingId = id;
+
+  const form = $("#form");
+  const account = accounts.find(item => item.id === id);
+
+  $("#formTitle").textContent =
+    account ? "Edit account" : "Add account";
+
+  form.elements.name.value = account?.name || "";
+  form.elements.niche.value = account?.niche || "";
+  form.elements.interval.value = account?.interval || 240;
+  form.elements.youtube.checked = account
+    ? account.youtube : true;
+  form.elements.tiktok.checked = account
+    ? account.tiktok : true;
+
+  $("#modal").showModal();
+}
+
+async function updateAccount(account, changes) {
+  if (busy) return;
+
+  try {
+    setBusy(true);
+
+    await apiRequest(API + "?id=" + encodeURIComponent(account.id), {
+      method: "PATCH",
+      body: JSON.stringify(changes)
+    });
+
+    await loadAccounts();
+    showMessage("Account updated successfully.");
+  } catch (error) {
+    showMessage("Could not update account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function deleteAccount(account) {
+  if (busy) return;
+
+  if (!confirm("Delete " + account.name + "?")) return;
+
+  try {
+    setBusy(true);
+
+    await apiRequest(API + "?id=" + encodeURIComponent(account.id), {
+      method: "DELETE"
+    });
+
+    await loadAccounts();
+    showMessage("Account deleted.");
+  } catch (error) {
+    showMessage("Could not delete account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("#add").onclick = () => openForm();
+
+$("#cancel").onclick = () => $("#modal").close();
+
+$("#form").onsubmit = async event => {
+  event.preventDefault();
+
+  if (busy) return;
+
+  const form = event.currentTarget;
+
+  const platforms = [];
+
+  if (form.elements.youtube.checked) platforms.push("youtube");
+  if (form.elements.tiktok.checked) platforms.push("tiktok");
+
+  if (!platforms.length) {
+    showMessage("Choose at least one platform.", true);
+    return;
+  }
+
+  const payload = {
+    name: form.elements.name.value.trim(),
+    niche: form.elements.niche.value.trim(),
+    interval_minutes: Number(form.elements.interval.value),
+    platforms
+  };
+
+  if (!payload.name || !payload.niche) {
+    showMessage("Enter an account name and content niche.", true);
+    return;
+  }
+
+  try {
+    setBusy(true);
+
+    if (editingId) {
+      await apiRequest(
+        API + "?id=" + encodeURIComponent(editingId),
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload)
+        }
+      );
+    } else {
+      await apiRequest(API, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    }
+
+    $("#modal").close();
+    await loadAccounts();
+
+    showMessage(editingId
+      ? "Account changes saved."
+      : "New account saved to Cloudflare.");
+
+    editingId = null;
+  } catch (error) {
+    showMessage("Could not save account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+};
+
+loadAccounts();
+</script>
+</body>
+</html>
