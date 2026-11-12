@@ -654,6 +654,32 @@ $("#ideaForm").onsubmit = async event => {
     disclosure.textContent = script.disclosure;
     result.append(disclosure);
 
+    const voiceControls = document.createElement("div");
+    voiceControls.className = "actions";
+    voiceControls.style.margin = "12px 0";
+    const playVoice = document.createElement("button");
+    playVoice.type = "button";
+    playVoice.textContent = "▶ Preview voiceover";
+    playVoice.onclick = () => {
+      if (!("speechSynthesis" in window)) {
+        showMessage("Voice preview is not supported by this browser.", true);
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(script.voiceover);
+      utterance.lang = "en-GB";
+      utterance.rate = 0.95;
+      window.speechSynthesis.speak(utterance);
+      showMessage("Playing voiceover preview. This does not create or save an audio file.");
+    };
+    const stopVoice = makeButton("Stop voice", "secondary");
+    stopVoice.onclick = () => {
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      showMessage("Voice preview stopped.");
+    };
+    voiceControls.append(playVoice, stopVoice);
+    result.append(voiceControls);
+
     script.scenes.forEach(scene => {
       const line = document.createElement("p");
       line.textContent = scene.time + " — " + scene.visual + " — " + scene.text;
