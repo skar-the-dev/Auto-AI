@@ -69,7 +69,16 @@ Style: ${style}
 Return ONLY valid JSON with keys title, hook, voiceover, scenes, caption, production_notes.
 scenes must be an array of five objects with keys time, visual, text, covering 0-3, 3-10, 10-20, 20-27 and 27-30 seconds.
 Be specific and engaging, avoid generic filler, do not invent statistics, names, quotes or precise factual claims. Phrase uncertain facts cautiously and flag them for checking. Keep on-screen captions brief. Do not claim research or source verification has been performed.`;
-  const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", { prompt, max_completion_tokens: 1800, temperature: 0.7, response_format: { type: "json_object" }, chat_template_kwargs: { enable_thinking: false } });
+  const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    messages: [
+      { role: "system", content: "You write concise, engaging short-form video scripts. Return only a valid JSON object, with no markdown fences or commentary." },
+      { role: "user", content: prompt }
+    ],
+    max_completion_tokens: 1800,
+    temperature: 0.7,
+    response_format: { type: "json_object" },
+    chat_template_kwargs: { enable_thinking: false }
+  });
   const generated = parseModelJson(result);
   if (!generated.title || !generated.hook || !generated.voiceover || !Array.isArray(generated.scenes)) {
     throw new Error("The AI response was incomplete. Please try again.");
