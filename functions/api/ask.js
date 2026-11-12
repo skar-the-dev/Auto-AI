@@ -122,7 +122,7 @@ async function searchWeb(query) {
       searchWikipedia(searchQuery).catch(() => [])
     ]);
     const filtered = [...webResults, ...wikiResults].filter(item =>
-      /nick\s*mercs|nickmercs/i.test(item.title + " " + item.snippet + " " + item.url)
+      /nick\s*mercs|nickmercs/i.test(item.title + " " + item.url)
     );
     return filtered.map(item => ({ ...item, query: searchQuery }));
   }));
@@ -203,7 +203,10 @@ RULES:
 - For "best", "greatest" or "top" questions, state the criteria and date/period. Do not pretend a subjective ranking is an official ranking.
 - For current rankings or news, state the date of the evidence. If extracts do not establish current status, say so.
 - Never invent names, dates, scores, prizes, quotes or achievements.
-- Every source must directly identify the person named in the question. Exclude unrelated people, games, generic award pages and search results that merely mention the topic in passing.\n- For a requested top 10, provide ten only if ten distinct, evidenced achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- For a requested top 10, provide ten only if ten distinct, evidenced achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
+- Distinguish events the person HOSTED or ORGANIZED from events they PERSONALLY WON or placed in. Hosting a tournament is not a tournament victory.
+- Distinguish participation, team results, individual results, awards, career milestones and popularity metrics; do not present one category as another.
+- A source title or URL that names a different person is not evidence about the subject, even if its snippet happens to mention them.
+- Every source must directly identify the person named in the question. Exclude unrelated people, games, generic award pages and search results that merely mention the topic in passing.\n- For a requested top 10, provide ten only if ten distinct, evidenced personal achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
 - If the sources do not contain enough evidence to answer, say exactly what is missing instead of guessing.
 - Return JSON only: {"answer":"clear answer in markdown with citations","confidence":"high|medium|low","coverage_note":"short honest limitation or why evidence is sufficient","key_points":["..."]}.`;
     const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
