@@ -29,15 +29,33 @@ export function buildScript(niche, topic, style) {
 }
 
 function parseModelJson(result) {
-  const choiceContent = result?.choices?.[0]?.message?.content;
-  const raw = typeof result === "string" ? result :
-    (typeof choiceContent === "string" ? choiceContent :
-    (Array.isArray(choiceContent) ? choiceContent.map(part => part?.text || "").join("\\n") :
-    (result?.response || result?.result?.response || result?.output || result?.result?.output || "")));
-  const text = String(raw).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const candidates = [
+    result?.choices?.[0]?.message?.content,
+    result?.result?.choices?.[0]?.message?.content,
+    result?.response, result?.result?.response,
+    result?.output_text, result?.output, result?.result?.output,
+    result?.content, result?.message?.content, result
+  ];
+  const normalise = value => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) return value.map(part => typeof part === "string" ? part : (part?.text || "")).join("\n");
+    if (value && typeof value === "object") {
+      if (typeof value.text === "string") return value.text;
+      if (typeof value.content === "string") return value.content;
+      if (typeof value.response === "string") return value.response;
+    }
+    return "";
+  };
+  let raw = "";
+  for (const candidate of candidates) {
+    raw = normalise(candidate);
+    if (raw.trim()) break;
+  }
+  const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const start = text.indexOf("{"), end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("The AI returned an unreadable script. Please try again.");
-  return JSON.parse(text.slice(start, end + 1));
+  if (start < 0 || end <= start) throw new Error("The AI response did not contain readable JSON. Please try again.");
+  try { return JSON.parse(text.slice(start, end + 1)); }
+  catch { throw new Error("The AI returned invalid JSON. Please try again."); }
 }
 
 export async function generateScript(env, niche, topic, style = "curiosity") {
