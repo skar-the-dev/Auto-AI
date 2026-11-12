@@ -125,6 +125,26 @@ label {display:grid;gap:6px;color:var(--muted)}
   </div>
 </section>
 
+
+<section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Script Studio</h2><span class="tag">First build</span></div>
+  <p>Turn a topic into a short-form video outline. This starter uses templates; AI writing and video rendering will be added separately.</p>
+  <form id="ideaForm">
+    <label>Account niche<input id="ideaNiche" required placeholder="e.g. Gaming, facts, motivation"></label>
+    <label>Video topic<input id="ideaTopic" required placeholder="e.g. 5 facts about space"></label>
+    <label>Style
+      <select id="ideaStyle">
+        <option value="curiosity">Curiosity hook</option>
+        <option value="facts">Facts / list</option>
+        <option value="story">Story</option>
+        <option value="list">Quick list</option>
+      </select>
+    </label>
+    <button type="submit" id="ideaButton">Create script outline</button>
+  </form>
+  <div id="ideaResult" class="notice" style="display:none;margin-top:16px"></div>
+</section>
+
 <div class="row" style="margin-top:28px">
   <h2>Your channels</h2>
   <span class="muted">Saved in Cloudflare</span>
@@ -381,7 +401,60 @@ async function updateAccount(account, changes) {
       body: JSON.stringify(changes)
     });
 
-    await loadAccounts();
+    await 
+$("#ideaForm").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("#ideaButton");
+  const result = $("#ideaResult");
+  button.disabled = true;
+  button.textContent = "Creating...";
+  result.style.display = "block";
+  result.textContent = "Building your outline...";
+  try {
+    const response = await apiRequest("/api/ideas", {
+      method: "POST",
+      body: JSON.stringify({
+        niche: $("#ideaNiche").value,
+        topic: $("#ideaTopic").value,
+        style: $("#ideaStyle").value
+      })
+    });
+    const script = response.script;
+    result.replaceChildren();
+    const heading = document.createElement("h3");
+    heading.textContent = script.title;
+    result.append(heading);
+    for (const [label, value] of [
+      ["Hook", script.hook],
+      ["Voiceover draft", script.voiceover],
+      ["Caption", script.caption],
+      ["Production notes", script.production_notes.join(" ")]
+    ]) {
+      const title = document.createElement("strong");
+      title.textContent = label;
+      const text = document.createElement("p");
+      text.style.whiteSpace = "pre-wrap";
+      text.textContent = value;
+      result.append(title, text);
+    }
+    const disclosure = document.createElement("p");
+    disclosure.className = "muted";
+    disclosure.textContent = script.disclosure;
+    result.append(disclosure);
+    script.scenes.forEach(scene => {
+      const line = document.createElement("p");
+      line.textContent = scene.time + " — " + scene.visual + " — " + scene.text;
+      result.append(line);
+    });
+  } catch (error) {
+    result.textContent = "Could not create outline: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create script outline";
+  }
+};
+
+loadAccounts();
     showMessage("Account updated successfully.");
   } catch (error) {
     showMessage("Could not update account: " + error.message, true);
