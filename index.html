@@ -199,6 +199,7 @@ label {display:grid;gap:6px;color:var(--muted)}
   <div id="renderStatus" class="notice" style="display:none"></div>
   <video id="renderPreview" controls playsinline style="display:none;width:100%;max-width:360px;border-radius:14px;margin-top:12px;background:#000"></video>
   <a id="downloadVideo" style="display:none;color:#a9bcff;font-weight:700;margin-top:12px" download>Download video draft</a>
+  <div class="notice" style="margin-top:14px"><strong>Saved videos on this iPhone</strong><div id="deviceVideoList" class="muted" style="margin-top:8px">Loading...</div></div>
   <canvas id="renderCanvas" width="360" height="640" style="display:none"></canvas>
 </section>
 
@@ -860,6 +861,76 @@ $("#batchForm").onsubmit = async event => {
 };
 
 
+
+function openRenderedVideoDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("auto-ai-rendered-videos", 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("videos")) request.result.createObjectStore("videos", { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function saveRenderedVideo(item, blob, ext) {
+  const db = await openRenderedVideoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("videos", "readwrite");
+    tx.objectStore("videos").put({ id: crypto.randomUUID(), title: item.title, createdAt: new Date().toISOString(), ext, blob });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function loadRenderedVideos() {
+  const target = $("#deviceVideoList");
+  if (!target || !("indexedDB" in window)) return;
+  try {
+    const db = await openRenderedVideoDB();
+    const videos = await new Promise((resolve, reject) => {
+      const req = db.transaction("videos", "readonly").objectStore("videos").getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    target.replaceChildren();
+    if (!videos.length) { target.textContent = "No videos saved on this iPhone yet."; return; }
+    videos.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    videos.forEach(video => {
+      const row = document.createElement("div");
+      row.className = "actions";
+      row.style.marginTop = "10px";
+      const label = document.createElement("span");
+      label.className = "muted";
+      label.textContent = video.title + " • " + new Date(video.createdAt).toLocaleString();
+      const download = makeButton("Download", "secondary");
+      download.onclick = () => {
+        const url = URL.createObjectURL(video.blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = video.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + "." + video.ext;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      };
+      const remove = makeButton("Delete", "danger");
+      remove.onclick = async () => {
+        const db2 = await openRenderedVideoDB();
+        await new Promise((resolve, reject) => {
+          const tx = db2.transaction("videos", "readwrite");
+          tx.objectStore("videos").delete(video.id);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        db2.close();
+        loadRenderedVideos();
+      };
+      row.append(label, download, remove);
+      target.append(row);
+    });
+  } catch (error) {
+    target.textContent = "Saved video storage unavailable: " + error.message;
+  }
+}
+
 $("#renderVideo").onclick = async () => {
   const item = savedScripts.find(script => script.id === $("#renderScript").value);
   const status = $("#renderStatus");
@@ -959,6 +1030,8 @@ $("#renderVideo").onclick = async () => {
     await finished;
     const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    await saveRenderedVideo(item, blob, ext);
+    await loadRenderedVideos();
     const url = URL.createObjectURL(blob);
     const preview = $("#renderPreview");
     preview.src = url;
@@ -988,6 +1061,7 @@ if ("serviceWorker" in navigator) {
 loadAccounts();
 loadScriptLibrary();
 loadProductionQueue();
+loadRenderedVideos();
 </script>
 </body>
 </html>
