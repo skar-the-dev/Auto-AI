@@ -1,10 +1,7 @@
-import { buildScript } from "./ideas.js";
+import { generateScript } from "./ideas.js";
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json" }
-  });
+  return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 }
 
 const angles = [
@@ -19,6 +16,7 @@ const angles = [
 export async function onRequestPost({ request, env }) {
   try {
     if (!env.DB) return json({ success: false, error: "Database binding DB is missing." }, 500);
+    if (!env.AI) return json({ success: false, error: "Workers AI binding AI is missing. Check the binding and redeploy." }, 500);
 
     const body = await request.json();
     const accountId = String(body.account_id || "").trim();
@@ -34,7 +32,6 @@ export async function onRequestPost({ request, env }) {
     const account = await env.DB.prepare(
       "SELECT id, name, niche FROM accounts WHERE id = ? AND active = 1"
     ).bind(accountId).first();
-
     if (!account) return json({ success: false, error: "Active account not found. Resume it and try again." }, 404);
 
     await env.DB.prepare(`
@@ -49,20 +46,22 @@ export async function onRequestPost({ request, env }) {
       )
     `).run();
 
-    const created = [];
+    // Generate the complete batch before saving, so a model error does not leave a half-finished batch.
+    const drafts = [];
     for (let i = 0; i < count; i++) {
-      const angle = angles[i];
-      const scriptTopic = count === 1 ? topic : topic + " — " + angle;
-      const script = buildScript(account.niche, scriptTopic, i % 2 === 0 ? "curiosity" : "facts");
-      const id = crypto.randomUUID();
+      const scriptTopic = count === 1 ? topic : `${topic} — ${angles[i]}`;
+      const style = i % 2 === 0 ? "curiosity" : "facts";
+      const script = await generateScript(env, account.niche, scriptTopic, style);
+      drafts.push({ id: crypto.randomUUID(), topic: scriptTopic, script });
+    }
+
+    const created = [];
+    for (const draft of drafts) {
       await env.DB.prepare(`
         INSERT INTO scripts (id, title, niche, topic, content_json, status)
         VALUES (?, ?, ?, ?, ?, 'Draft')
-      `).bind(id, script.title, account.niche, scriptTopic, JSON.stringify({
-        ...script,
-        disclosure: "Template-based draft only. This is not AI research or a rendered video. Verify factual claims and replace generic lines before publishing."
-      })).run();
-      created.push({ id, title: script.title, topic: scriptTopic });
+      `).bind(draft.id, draft.script.title, account.niche, draft.topic, JSON.stringify(draft.script)).run();
+      created.push({ id: draft.id, title: draft.script.title, topic: draft.topic });
     }
 
     return json({
@@ -70,9 +69,10 @@ export async function onRequestPost({ request, env }) {
       account: account.name,
       created,
       count: created.length,
-      message: created.length + " script drafts saved. Video rendering is not connected yet."
+      generated_by: "Cloudflare Workers AI",
+      message: created.length + " AI-generated script drafts saved. Review factual claims before publishing."
     }, 201);
   } catch (error) {
-    return json({ success: false, error: error.message || "Could not create batch." }, 500);
+    return json({ success: false, error: error.message || "Could not create AI batch." }, 500);
   }
 }
