@@ -7,7 +7,7 @@ function json(data, status = 200) {
 
 const clean = value => String(value || "").trim().slice(0, 160);
 
-function buildScript(niche, topic, style) {
+export function buildScript(niche, topic, style) {
   const hooks = {
     curiosity: `You probably don't know this about ${topic}...`,
     facts: `Here are 3 things about ${topic} that might surprise you.`,
