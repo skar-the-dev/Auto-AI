@@ -231,10 +231,10 @@ label {display:grid;gap:6px;color:var(--muted)}
     </select>
   </label>
   <button type="button" class="secondary" id="generateVoiceover">Generate AI voiceover</button>
-  <button type="button" class="secondary" id="findStockFootage">Find stock footage for scenes</button>
+  <button type="button" class="secondary" id="findStockFootage">Find real people, teams & gameplay</button>
   <div id="footageStatus" class="notice" style="display:none"></div>
   <div id="footageResults" class="grid" style="margin-top:12px"></div>
-  <p class="muted" style="font-size:12px">Stock video search by <a href="https://pixabay.com/" target="_blank" rel="noopener">Pixabay</a>. Footage is selected per scene; review each clip before using it.</p>
+  <p class="muted" style="font-size:12px">Searches YouTube for embeddable Creative Commons-labelled results. Review the source and licence terms before reuse. Search results are previews, not permission to download or republish.</p>
   <div id="voiceoverStatus" class="notice" style="display:none"></div>
   <audio id="voiceoverPreview" controls playsinline style="display:none;width:100%;margin-top:12px"></audio>
   <a id="downloadVoiceover" style="display:none;color:#a9bcff;font-weight:700;margin-top:10px" download="auto-ai-voiceover.mp3">Download voiceover MP3</a>
@@ -1202,7 +1202,7 @@ $("#findStockFootage").onclick = async () => {
   const results = $("#footageResults");
   const button = $("#findStockFootage");
   status.style.display = "block";
-  results.innerHTML = "";
+  results.replaceChildren();
   if (!item) {
     status.textContent = "Choose a saved script first.";
     return;
@@ -1211,64 +1211,88 @@ $("#findStockFootage").onclick = async () => {
   const scenes = Array.isArray(script.scenes) && script.scenes.length
     ? script.scenes
     : [{ text: script.hook || item.title }, { text: script.voiceover || item.topic }];
-  const lines = scenes.map(scene => String(scene.visual || scene.text || "").trim()).filter(Boolean).slice(0, 6);
-  if (!lines.length) {
-    status.textContent = "This script does not contain scene descriptions to search.";
+  const sceneQueries = scenes.slice(0, 6).map(scene => {
+    const raw = String(scene.visual || scene.text || "").trim();
+    const people = String(scene.person || scene.team || scene.event || "").trim();
+    return [people, raw].filter(Boolean).join(" ").split(/\s+/).slice(0, 12).join(" ");
+  }).filter(Boolean);
+  if (!sceneQueries.length) {
+    status.textContent = "This script has no scene details to search.";
     return;
   }
   button.disabled = true;
-  button.textContent = "Searching footage...";
+  button.textContent = "Finding real footage...";
   stockFootageByScene = [];
   try {
-    for (let index = 0; index < lines.length; index++) {
-      const query = lines[index].split(/\s+/).slice(0, 7).join(" ");
-      status.textContent = "Searching Pixabay footage for scene " + (index + 1) + " of " + lines.length + "...";
-      const response = await fetch("/api/footage?q=" + encodeURIComponent(query));
+    for (let index = 0; index < sceneQueries.length; index++) {
+      const query = sceneQueries[index];
+      status.textContent = "Searching real footage for scene " + (index + 1) + " of " + sceneQueries.length + ": " + query;
+      const response = await fetch("/api/youtube-footage?q=" + encodeURIComponent(query));
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) throw new Error(data.error || "Footage search failed (HTTP " + response.status + ").");
       const clips = data.videos || [];
-      stockFootageByScene[index] = clips[0] || null;
-      const card = document.createElement("div");
+      stockFootageByScene[index] = null;
+
+      const card = document.createElement("article");
       card.className = "notice";
-      card.style.marginTop = "10px";
+      card.style.marginTop = "12px";
       const heading = document.createElement("strong");
-      heading.textContent = "Scene " + (index + 1) + ": " + query;
+      heading.textContent = "Scene " + (index + 1) + " — " + query;
       card.appendChild(heading);
+
       if (!clips.length) {
         const empty = document.createElement("p");
-        empty.textContent = "No matching stock clip found. The animated background will be used for this scene.";
+        empty.textContent = "No embeddable Creative Commons-labelled videos found for this scene.";
         card.appendChild(empty);
-      } else {
-        const clip = clips[0];
-        const video = document.createElement("video");
-        video.src = clip.video_url;
-        video.poster = clip.thumbnail;
-        video.muted = true;
-        video.loop = true;
-        video.playsInline = true;
-        video.preload = "metadata";
-        video.controls = true;
-        video.style.cssText = "width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-top:10px;background:#000";
-        card.appendChild(video);
-        const detail = document.createElement("p");
-        detail.textContent = clip.title + " • " + clip.duration + " sec • " + clip.width + "×" + clip.height + " • by " + clip.creator;
-        card.appendChild(detail);
-        const sourceLink = document.createElement("a");
-        sourceLink.href = clip.source_url;
-        sourceLink.target = "_blank";
-        sourceLink.rel = "noopener";
-        sourceLink.textContent = "View source on Pixabay";
-        card.appendChild(sourceLink);
       }
+      clips.forEach((clip, clipIndex) => {
+        const option = document.createElement("div");
+        option.style.cssText = "margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)";
+        const title = document.createElement("p");
+        title.textContent = clip.title;
+        title.style.fontWeight = "700";
+        option.appendChild(title);
+        const frame = document.createElement("iframe");
+        frame.src = clip.embedUrl;
+        frame.title = "YouTube preview: " + clip.title;
+        frame.loading = "lazy";
+        frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        frame.allowFullscreen = true;
+        frame.referrerPolicy = "strict-origin-when-cross-origin";
+        frame.style.cssText = "width:100%;aspect-ratio:16/9;border:0;border-radius:10px;background:#000";
+        option.appendChild(frame);
+        const meta = document.createElement("p");
+        meta.textContent = "Channel: " + clip.channel + " • YouTube marks this result Creative Commons; independently verify the actual rights and any third-party content.";
+        option.appendChild(meta);
+        const link = document.createElement("a");
+        link.href = clip.watchUrl;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Open original on YouTube";
+        option.appendChild(link);
+        const choose = document.createElement("button");
+        choose.type = "button";
+        choose.className = "secondary";
+        choose.textContent = "Select for this scene";
+        choose.style.marginTop = "8px";
+        choose.onclick = () => {
+          stockFootageByScene[index] = clip;
+          status.textContent = "Selected footage for scene " + (index + 1) + ". " + stockFootageByScene.filter(Boolean).length + " scene(s) have a reviewed selection. This preview selection is not yet inserted into the exported MP4.";
+          option.querySelectorAll("button").forEach(button => {
+            button.textContent = button === choose ? "Selected ✓" : "Select for this scene";
+          });
+        };
+        option.appendChild(choose);
+        card.appendChild(option);
+      });
       results.appendChild(card);
     }
-    const found = stockFootageByScene.filter(Boolean).length;
-    status.textContent = found + " of " + lines.length + " scenes have matching footage. The selected clips are ready for the video-rendering test.";
+    status.textContent = "Found footage results for " + sceneQueries.length + " scene(s). Preview and select the best match for each scene. Selections are saved in this page only; the next step is licensed clip import into the MP4 renderer.";
   } catch (error) {
     status.textContent = "Footage search stopped: " + error.message;
   } finally {
     button.disabled = false;
-    button.textContent = "Find stock footage for scenes";
+    button.textContent = "Find real people, teams & gameplay";
   }
 };
 
