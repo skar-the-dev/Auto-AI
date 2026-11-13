@@ -259,6 +259,19 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   <div id="youtubeStatus" class="notice" aria-live="polite">YouTube is not connected yet.</div>
 </section>
 
+<section class="panel" style="margin-top:18px" id="tiktokPanel">
+  <div class="row"><h2>TikTok Connection</h2><span class="tag">OAuth setup</span></div>
+  <p>Connect your TikTok profile securely to an Auto AI account. This links the account and stores authorisation; automatic posting is a separate step and requires TikTok Content Posting approval.</p>
+  <label>Auto AI account
+    <select id="tiktokAccount"><option value="">Choose an account</option></select>
+  </label>
+  <div class="actions">
+    <button type="button" id="tiktokConnect">Connect TikTok</button>
+    <button type="button" class="secondary" id="tiktokRefresh">Refresh connection status</button>
+  </div>
+  <div id="tiktokStatus" class="notice" aria-live="polite">TikTok is not connected yet. Enter your Auto AI admin key in the YouTube Connection section first.</div>
+</section>
+
 <section class="panel batch-studio" style="margin-top:24px">
   <div class="batch-heading">
     <div>
@@ -492,6 +505,7 @@ async function loadAccounts() {
     showMessage("Your channels are loaded from Cloudflare.");
     if (sessionStorage.getItem("autoAiAdminKey") && youtubeParams.get("youtube") !== "error") {
       refreshYoutubeStatus();
+      refreshTikTokStatus();
     }
   } catch (error) {
     showMessage("Could not load accounts: " + error.message, true);
@@ -515,6 +529,13 @@ function render() {
     youtubeSelect.replaceChildren(new Option("Choose an account", ""));
     accounts.forEach(account => youtubeSelect.add(new Option(account.name + " — " + account.niche, account.id)));
     if (accounts.some(account => account.id === previousYoutube)) youtubeSelect.value = previousYoutube;
+  }
+  const tiktokSelect = $("#tiktokAccount");
+  if (tiktokSelect) {
+    const previousTikTok = tiktokSelect.value;
+    tiktokSelect.replaceChildren(new Option("Choose an account", ""));
+    accounts.forEach(account => tiktokSelect.add(new Option(account.name + " — " + account.niche, account.id)));
+    if (accounts.some(account => account.id === previousTikTok)) tiktokSelect.value = previousTikTok;
   }
 
   $("#active").textContent =
@@ -1615,12 +1636,70 @@ $("#youtubeConnect").onclick = async () => {
   }
 };
 $("#youtubeRefresh").onclick = refreshYoutubeStatus;
+
+function tiktokAdminHeaders() {
+  return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
+}
+async function refreshTikTokStatus() {
+  const target = $("#tiktokStatus");
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
+  try {
+    const response = await fetch("/api/tiktok/status", { headers: { "x-auto-ai-admin-key": key } });
+    const data = await youtubeApiData(response);
+    target.replaceChildren();
+    if (!data.connections.length) { target.textContent = "No TikTok accounts connected yet."; return; }
+    data.connections.forEach(connection => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginTop = "8px";
+      const label = document.createElement("span");
+      label.textContent = (connection.account_name || "Auto AI account") + " → @" + (connection.display_name || "TikTok account") + " (connected)";
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect this TikTok account from Auto AI?")) return;
+        const result = await fetch("/api/tiktok/disconnect", { method: "POST", headers: tiktokAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
+        try { await youtubeApiData(result); }
+        catch (error) { target.textContent = error.message; return; }
+        refreshTikTokStatus();
+      };
+      row.append(label, disconnect);
+      target.append(row);
+    });
+  } catch (error) { target.textContent = "TikTok status request failed: " + (error.message || "No response received."); }
+}
+$("#tiktokConnect").onclick = async () => {
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = $("#tiktokAccount").value;
+  const target = $("#tiktokStatus");
+  if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
+  if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
+  const button = $("#tiktokConnect");
+  button.disabled = true;
+  target.textContent = "Starting secure TikTok authorisation...";
+  try {
+    const response = await fetch("/api/tiktok/connect", { method: "POST", headers: tiktokAdminHeaders(), body: JSON.stringify({ account_id: accountId }) });
+    const data = await youtubeApiData(response);
+    sessionStorage.setItem("autoAiAdminKey", key);
+    location.href = data.authorization_url;
+  } catch (error) {
+    target.textContent = "TikTok connection could not start: " + (error.message || "Check Cloudflare settings and try again.");
+    button.disabled = false;
+  }
+};
+$("#tiktokRefresh").onclick = refreshTikTokStatus;
 if ($("#youtubeAdminKey")) $("#youtubeAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
 const youtubeParams = new URLSearchParams(location.search);
 if (youtubeParams.has("youtube")) {
   $("#youtubeStatus").textContent = youtubeParams.get("youtube") === "connected"
     ? "Google authorised the YouTube channel. Checking saved connection..."
     : "YouTube connection issue: " + (youtubeParams.get("message") || "Please try again.");
+  history.replaceState({}, "", location.pathname);
+}
+if (youtubeParams.has("tiktok")) {
+  $("#tiktokStatus").textContent = youtubeParams.get("tiktok") === "connected"
+    ? "TikTok authorised successfully. Checking saved connection..."
+    : "TikTok connection issue: " + (youtubeParams.get("message") || "Please try again.");
   history.replaceState({}, "", location.pathname);
 }
 
