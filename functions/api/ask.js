@@ -430,6 +430,11 @@ RULES:
     if (fullPageSources.length === 0) confidence = "low";
     else if (confidence === "high" && (fullPageSources.length < 2 || independentHosts.size < 2 || allCommunitySources)) confidence = "medium";
     if (confidence === "high" && sources.some(source => !source.full_text)) confidence = "medium";
+    // Community-maintained tournament wikis alone are not enough for MEDIUM confidence.
+    const onlyCommunityEvidence = fullPageSources.length > 0 && fullPageSources.every(source =>
+      /liquipedia|fandom|wiki|wikipedia/i.test((source.url || "") + " " + (source.title || ""))
+    );
+    if (onlyCommunityEvidence) confidence = "low";
     return json({
       success: true,
       question,
