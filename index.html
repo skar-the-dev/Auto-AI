@@ -321,6 +321,11 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Generate scripts</button>
   </form>
   <div id="batchResult" class="notice batch-result" style="display:none" aria-live="polite"></div>
+  <div id="batchDraftReview" style="display:none;margin-top:18px">
+    <div class="row"><h3>Review your new scripts</h3><span class="tag">Edit before production</span></div>
+    <p class="muted">Check each draft, make any changes, then add the scripts you approve to Production Progress.</p>
+    <div id="batchDraftCards" class="grid"></div>
+  </div>
   <div class="subpanel" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line,#26344a)">
     <div class="row"><h3>Production progress</h3><span class="tag" id="jobCount">0 waiting</span></div>
     <p class="muted">Track scripts waiting for the video-rendering stage. Video rendering is not automated yet.</p>
@@ -1020,6 +1025,63 @@ async function deleteSavedScript(item) {
 
 
 
+function renderBatchDraftReview(created) {
+  const wrap = $("#batchDraftReview");
+  const target = $("#batchDraftCards");
+  const ids = new Set((created || []).map(item => item.id));
+  const drafts = savedScripts.filter(item => ids.has(item.id));
+  target.replaceChildren();
+  if (!drafts.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+  drafts.forEach(item => {
+    const card = document.createElement("article");
+    card.className = "account";
+    const title = document.createElement("h3");
+    title.textContent = item.title;
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    meta.textContent = item.niche + " • " + item.topic;
+    const editor = document.createElement("div");
+    editor.style.display = "grid";
+    editor.style.gap = "9px";
+    const makeField = (name, value, rows) => {
+      const label = document.createElement("label");
+      label.textContent = name;
+      const input = rows ? document.createElement("textarea") : document.createElement("input");
+      input.value = value || "";
+      input.style.width = "100%";
+      if (rows) { input.rows = rows; input.style.resize = "vertical"; }
+      label.append(input); editor.append(label); return input;
+    };
+    const titleInput = makeField("Video title", item.title);
+    const hookInput = makeField("Opening hook", item.script.hook, 2);
+    const voiceInput = makeField("Voiceover script", item.script.voiceover, 8);
+    const captionInput = makeField("Caption", item.script.caption, 3);
+    const notesInput = makeField("Production notes (one per line)", (item.script.production_notes || []).join("\n"), 3);
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const save = makeButton("Save edits");
+    save.onclick = async () => {
+      save.disabled = true; save.textContent = "Saving...";
+      try {
+        const script = { ...item.script, hook: hookInput.value.trim(), voiceover: voiceInput.value.trim(),
+          caption: captionInput.value.trim(), production_notes: notesInput.value.split("\n").map(x=>x.trim()).filter(Boolean) };
+        await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+          method: "PATCH", body: JSON.stringify({ title: titleInput.value, script })
+        });
+        showMessage("Script edits saved.");
+        await loadScriptLibrary();
+        renderBatchDraftReview(created);
+      } catch (error) { showMessage("Could not save edits: " + error.message, true); save.disabled = false; save.textContent = "Save edits"; }
+    };
+    const queue = makeButton("Approve & queue", "secondary");
+    queue.onclick = async () => { await queueScript(item); };
+    actions.append(save, queue);
+    card.append(title, meta, editor, actions);
+    target.append(card);
+  });
+}
+
 function syncBatchNiche() {
   const account = accounts.find(item => item.id === $("#batchAccount").value);
   const select = $("#batchNiche");
@@ -1108,6 +1170,7 @@ $("#batchForm").onsubmit = async event => {
     });
     result.textContent = data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
     await loadScriptLibrary();
+    renderBatchDraftReview(data.created || []);
   } catch (error) {
     result.textContent = "Batch could not be created: " + error.message;
   } finally {
