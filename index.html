@@ -245,7 +245,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 
 <section class="panel" style="margin-top:24px" id="youtubePanel">
   <div class="row"><h2>YouTube Connection</h2><span class="tag">OAuth setup</span></div>
-  <p>Connect one YouTube channel to an Auto AI account. Publishing is not enabled yet; this securely saves the channel authorisation for the next stage.</p>
+  <p>Connect a YouTube channel, then upload a finished video or authorise Auto AI to upload a newly rendered video using your selected visibility and schedule.</p>
   <label>Auto AI account
     <select id="youtubeAccount"><option value="">Choose an account</option></select>
   </label>
@@ -284,7 +284,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     </label>
     <label style="display:flex;gap:10px;align-items:flex-start">
       <input id="youtubePublishConsent" type="checkbox" style="width:auto;margin-top:3px">
-      <span>I authorise Auto AI to upload this selected video to the YouTube channel shown above using the visibility and schedule I selected.</span>
+      <span>I authorise Auto AI to upload the video I select or finish rendering to the connected channel using the visibility and schedule I selected.</span>
     </label>
     <button type="button" id="youtubeUpload">Upload to YouTube</button>
     <div id="youtubeUploadStatus" class="notice" aria-live="polite">No video uploaded yet.</div>
