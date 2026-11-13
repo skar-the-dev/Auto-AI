@@ -73,14 +73,16 @@ async function searchBingRss(query) {
     });
     if (!response.ok) return [];
     const xml = await response.text();
-    const items = xml.match(/<item>[\\s\\S]*?<\\/item>/gi) || [];
+    const items = xml.split("<item>").slice(1).map(part => "<item>" + part.split("</item>")[0] + "</item>");
     return items.slice(0, 8).map(item => {
       const get = tag => stripHtml(item.match(new RegExp("<" + tag + "(?:\\s[^>]*)?>([\\s\\S]*?)</" + tag + ">", "i"))?.[1] || "");
       const title = get("title");
       const link = get("link");
       const snippet = get("description");
+      let validUrl = false;
+      try { validUrl = ["http:", "https:"].includes(new URL(link).protocol); } catch {}
       return { title, url: link, snippet: snippet.slice(0, 1000), query };
-    }).filter(item => item.title && /^https?:\\/\\//i.test(item.url));
+    }).filter(item => item.title && item.url && item.url.startsWith("http"));
   } catch { return []; }
 }
 
