@@ -331,6 +331,7 @@ export async function onRequestPost({ request, env }) {
     ).join("\n\n");
 
     const prompt = `Answer the user's question using ONLY the research extracts supplied below.
+A source labelled FULL-PAGE EXTRACT was retrieved and parsed from its page. A source labelled SEARCH SNIPPET is only a search-engine excerpt and is weak evidence; do not treat it as a verified result row.
 QUESTION: ${question}
 
 RESEARCH EXTRACTS:
@@ -404,7 +405,17 @@ RULES:
       }
     }
 
-    const confidence = ["high", "medium", "low"].includes(answer.confidence) ? answer.confidence : "low";
+    let confidence = ["high", "medium", "low"].includes(answer.confidence) ? answer.confidence : "low";
+    const fullPageSources = sources.filter(source => source.full_text);
+    const independentHosts = new Set(fullPageSources.map(source => {
+      try { return new URL(source.url).hostname.replace(/^www\\./, ""); } catch { return ""; }
+    }).filter(Boolean));
+    const allCommunitySources = fullPageSources.length > 0 && fullPageSources.every(source =>
+      /liquipedia|fandom|wikipedia|esports wiki/i.test(source.url + " " + source.title)
+    );
+    if (fullPageSources.length === 0) confidence = "low";
+    else if (confidence === "high" && (fullPageSources.length < 2 || independentHosts.size < 2 || allCommunitySources)) confidence = "medium";
+    if (confidence === "high" && sources.some(source => !source.full_text)) confidence = "medium";
     return json({
       success: true,
       question,
