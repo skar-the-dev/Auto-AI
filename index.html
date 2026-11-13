@@ -265,16 +265,6 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   <div id="autoFindStatus" class="notice" aria-live="polite">Choose a saved script and press Find & collect clips. Auto AI will search the connected YouTube channel's permitted Creative Commons results and save matching candidates automatically.</div>
   <div id="autoFindResults" class="grid"></div>
   <p class="muted">Automatic discovery can collect source details and authorised previews. It cannot download YouTube/TikTok audiovisual files through their standard APIs. TikTok's Display API lists videos from an authorised creator account; Twitch download links require the relevant channel/editor authorisation.</p>
-  <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:12px">
-    <h3>Add a source you found</h3>
-    <label>Platform<select id="sourcePlatform"><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="twitch">Twitch</option><option value="google">Google / website</option><option value="other">Other</option></select></label>
-    <label>Original clip or page URL<input id="sourceUrl" type="url" placeholder="https://..." required></label>
-    <label>Creator / channel / publisher<input id="sourceCreator" maxlength="160" placeholder="Creator or channel name"></label>
-    <label>Clip / page title<input id="sourceTitle" maxlength="240" placeholder="What is this source?"></label>
-    <label>Usage rights<select id="sourceRights"><option>Needs permission</option><option>Unknown</option><option>Permission confirmed</option><option>Creative Commons</option><option>Public domain</option></select></label>
-    <label>Permission or licence details<textarea id="sourceRightsNote" rows="2" maxlength="1000" placeholder="Licence URL, permission reference, attribution wording or restrictions"></textarea></label>
-    <button type="button" id="saveClipSource">Save candidate for review</button>
-  </div>
   <div class="notice"><strong>Final review rule:</strong> rights status and your review decision are separate. You can save anything as a candidate, but a clip must be explicitly marked Approved with a review note before the YouTube upload flow will accept it. Approval is your own decision, not a legal clearance or a guarantee that reuse is lawful.</div>
   <div id="sourceManagerStatus" class="notice" aria-live="polite">Choose a saved script to manage its sources.</div>
   <div id="sourceRecords" class="grid"></div>
@@ -420,18 +410,22 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 
   <div class="subpanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
     <h3>YouTube video uploads</h3>
-    <p class="muted">Upload a completed video file to the connected channel. YouTube handles scheduled publishing after the upload.</p>
+    <p class="muted">Choose a saved script and Auto AI will fill the title, description and tags for you. Check the details, choose visibility and schedule, then authorise the upload.</p>
+    <label>Video details from saved script
+      <select id="youtubeMetadataScript"><option value="">Choose a saved script</option></select>
+    </label>
+    <div id="youtubeMetadataStatus" class="notice" aria-live="polite">Choose a saved script to fill in its YouTube details.</div>
     <label>Video file
       <input id="youtubeVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime">
     </label>
-    <label>Video title
-      <input id="youtubeVideoTitle" maxlength="100" placeholder="Enter a YouTube title">
+    <label>Video title (auto-filled)
+      <input id="youtubeVideoTitle" maxlength="100" placeholder="Choose a saved script first">
     </label>
-    <label>Description
-      <textarea id="youtubeVideoDescription" rows="3" maxlength="5000" placeholder="Video description"></textarea>
+    <label>Description (auto-filled)
+      <textarea id="youtubeVideoDescription" rows="5" maxlength="5000" placeholder="Auto AI will create the description from your saved script."></textarea>
     </label>
-    <label>Tags (comma separated)
-      <input id="youtubeVideoTags" placeholder="gaming, news, shorts">
+    <label>Tags (auto-filled)
+      <input id="youtubeVideoTags" placeholder="Auto AI will suggest tags from your niche and topic">
     </label>
     <label>Visibility
       <select id="youtubePrivacy">
@@ -895,6 +889,14 @@ async function loadScriptLibrary() {
   try {
     const data = await apiRequest("/api/scripts");
     savedScripts = data.scripts || [];
+    const metadataSelect = $("#youtubeMetadataScript");
+    if (metadataSelect) {
+      const previousMetadata = metadataSelect.value;
+      metadataSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => metadataSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previousMetadata)) metadataSelect.value = previousMetadata;
+      else if (savedScripts.length === 1) metadataSelect.value = savedScripts[0].id;
+    }
     const renderSelect = $("#renderScript");
     if (renderSelect) {
       const previous = renderSelect.value;
@@ -1779,6 +1781,38 @@ function formatSourceCredits(sources) {
   return "\n\nVIDEO SOURCES & CREDITS\n" + sources.map((source,index) => (index+1)+". "+(source.title||source.platform.toUpperCase()+" clip")+(source.creator?" — "+source.creator:"")+"\n   "+source.url+"\n   Usage status recorded: "+source.rights_status+(source.rights_note?"\n   Licence / permission details: "+source.rights_note:"")).join("\n\n")+"\n\nCredit identifies the source; it does not itself grant permission to reuse copyrighted material.";
 }
 
+
+function fillYouTubeMetadata(scriptId) {
+  const item = savedScripts.find(entry => entry.id === scriptId);
+  const status = $("#youtubeMetadataStatus");
+  if (!item) {
+    status.textContent = "Choose a saved script to fill in its YouTube details.";
+    return;
+  }
+  const script = item.script || {};
+  const title = String(item.title || script.title || item.topic || "New video").replace(/\\s+/g, " ").trim().slice(0, 100);
+  const descriptionParts = [
+    String(script.caption || "").trim(),
+    String(script.hook || "").trim(),
+    String(script.voiceover || "").trim(),
+    "Topic: " + String(item.topic || "").trim(),
+    "More from this channel: " + String(item.niche || "").trim()
+  ].filter(Boolean);
+  const description = [...new Set(descriptionParts)].join("\\n\\n").slice(0, 5000);
+  const tags = [...new Set((String(item.niche || "") + "," + String(item.topic || "") + ",shorts").split(/[;,]/).map(tag => tag.trim().toLowerCase()).filter(Boolean))].slice(0, 15);
+  $("#youtubeVideoTitle").value = title;
+  $("#youtubeVideoDescription").value = description;
+  $("#youtubeVideoTags").value = tags.join(", ");
+  status.textContent = "YouTube title, description and tags filled from “" + item.title + "”. Review them before upload.";
+}
+$("#youtubeMetadataScript").onchange = event => fillYouTubeMetadata(event.target.value);
+$("#renderScript").addEventListener("change", event => {
+  if ($("#youtubeMetadataScript")) {
+    $("#youtubeMetadataScript").value = event.target.value;
+    fillYouTubeMetadata(event.target.value);
+  }
+});
+
 async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   const status = $("#youtubeUploadStatus");
   const file = fileOverride || $("#youtubeVideoFile").files?.[0];
@@ -1796,13 +1830,13 @@ async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   if (scheduledLocal && privacy !== "private") throw new Error("Scheduled YouTube videos must be uploaded as Private.");
   $("#youtubeVideoTitle").value = title;
   let description = $("#youtubeVideoDescription").value;
-  const selectedSourceScript = $("#sourceScript")?.value || "";
+  const selectedSourceScript = $("#youtubeMetadataScript")?.value || $("#renderScript")?.value || "";
   if (selectedSourceScript) {
     const sourceData = await sourceApi("/api/sources?script_id=" + encodeURIComponent(selectedSourceScript));
     const sources = sourceData.sources || [];
-    const unreviewed = sources.filter(source => source.review_status !== "Approved" || !source.media_key);
-    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) are not approved or do not have an imported video file. Review and import each candidate before uploading.");
-    const credits = formatSourceCredits(sources).slice(-4800);
+    const unreviewed = sources.filter(source => source.review_status !== "Approved");
+    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) still need approval. Review them before uploading.");
+    const credits = formatSourceCredits(sources.filter(source => source.review_status === "Approved")).slice(-4800);
     description = description.slice(0, Math.max(0, 5000 - credits.length)) + credits;
     $("#youtubeVideoDescription").value = description;
   }
