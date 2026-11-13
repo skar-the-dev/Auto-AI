@@ -1642,6 +1642,17 @@ $("#renderVideo").onclick = async () => {
     link.textContent = "Download finished video (" + ext.toUpperCase() + ")";
     link.style.display = "inline-block";
     status.textContent = "Finished! Your vertical video now includes the AI voiceover and animated scene captions. Preview it below or download the video file.";
+    if ($("#youtubePublishConsent")?.checked) {
+      const publishButton = $("#youtubeUpload");
+      publishButton.disabled = true;
+      try {
+        status.textContent = "Video rendered. Your saved publishing authorisation is being used to upload it to YouTube...";
+        const published = await uploadYouTubeVideo(blob, item.title);
+        status.textContent = "Video rendered and " + published.status.toLowerCase() + " on YouTube: " + published.title;
+      } catch (uploadError) {
+        status.textContent = "Video rendered successfully, but YouTube upload needs attention: " + uploadError.message;
+      } finally { publishButton.disabled = false; }
+    }
   } catch (error) {
     status.textContent = "Could not assemble this video: " + error.message + ". Try again with a shorter script and keep Auto AI open.";
   } finally {
@@ -1707,21 +1718,22 @@ async function refreshYoutubeStatus() {
     });
   } catch (error) { target.textContent = "Status request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server."); }
 }
-$("#youtubeUpload").onclick = async () => {
+async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   const status = $("#youtubeUploadStatus");
-  const file = $("#youtubeVideoFile").files?.[0];
+  const file = fileOverride || $("#youtubeVideoFile").files?.[0];
   const accountId = $("#youtubeAccount").value;
-  const title = $("#youtubeVideoTitle").value.trim();
+  const title = $("#youtubeVideoTitle").value.trim() || suggestedTitle;
   const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
   const privacy = $("#youtubePrivacy").value;
   const scheduledLocal = $("#youtubePublishAt").value;
-  if (!key) { status.textContent = "Enter your Auto AI admin key first."; return; }
-  if (!accountId) { status.textContent = "Choose the connected Auto AI account."; return; }
-  if (!file) { status.textContent = "Choose a finished video file."; return; }
-  if (!title) { status.textContent = "Enter a YouTube title."; return; }
-  if (!$("#youtubePublishConsent").checked) { status.textContent = "Confirm the upload authorisation before continuing."; return; }
-  if (file.size > 100 * 1024 * 1024) { status.textContent = "This first upload route supports files up to 100 MB. Larger files need direct cloud storage upload."; return; }
-  if (scheduledLocal && privacy !== "private") { status.textContent = "Scheduled YouTube videos must be uploaded as Private."; return; }
+  if (!key) throw new Error("Enter your Auto AI admin key first.");
+  if (!accountId) throw new Error("Choose the connected Auto AI account.");
+  if (!file) throw new Error("Choose a finished video file.");
+  if (!title) throw new Error("Enter a YouTube title.");
+  if (!$("#youtubePublishConsent").checked) throw new Error("Confirm the upload authorisation before continuing.");
+  if (file.size > 100 * 1024 * 1024) throw new Error("This first upload route supports files up to 100 MB. Larger files need direct cloud storage upload.");
+  if (scheduledLocal && privacy !== "private") throw new Error("Scheduled YouTube videos must be uploaded as Private.");
+  $("#youtubeVideoTitle").value = title;
   const headers = {
     "x-auto-ai-admin-key": key,
     "x-youtube-account-id": accountId,
@@ -1732,27 +1744,27 @@ $("#youtubeUpload").onclick = async () => {
     "Content-Type": file.type || "video/mp4"
   };
   if (scheduledLocal) headers["x-youtube-publish-at"] = new Date(scheduledLocal).toISOString();
+  status.textContent = "Uploading to YouTube. Keep Auto AI open until YouTube confirms the upload.";
+  const response = await fetch("/api/youtube/upload", { method: "POST", headers, body: file });
+  const data = await youtubeApiData(response);
+  status.replaceChildren();
+  const message = document.createElement("p");
+  message.textContent = data.status + ": " + data.title;
+  const link = document.createElement("a");
+  link.href = data.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Open YouTube video";
+  link.style.color = "#a9bcff";
+  status.append(message, link);
+  return data;
+}
+$("#youtubeUpload").onclick = async () => {
   const button = $("#youtubeUpload");
   button.disabled = true;
-  status.textContent = "Uploading to YouTube. Keep this page open until YouTube confirms the upload.";
-  try {
-    const response = await fetch("/api/youtube/upload", { method: "POST", headers, body: file });
-    const data = await youtubeApiData(response);
-    status.replaceChildren();
-    const message = document.createElement("p");
-    message.textContent = data.status + ": " + data.title;
-    const link = document.createElement("a");
-    link.href = data.url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "Open YouTube video";
-    link.style.color = "#a9bcff";
-    status.append(message, link);
-  } catch (error) {
-    status.textContent = "Upload failed: " + error.message;
-  } finally {
-    button.disabled = false;
-  }
+  try { await uploadYouTubeVideo(); }
+  catch (error) { $("#youtubeUploadStatus").textContent = "Upload failed: " + error.message; }
+  finally { button.disabled = false; }
 };
 $("#youtubeConnect").onclick = async () => {
   const key = $("#youtubeAdminKey").value.trim();
