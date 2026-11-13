@@ -288,6 +288,10 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     </label>
     <button type="button" id="youtubeUpload">Upload to YouTube</button>
     <div id="youtubeUploadStatus" class="notice" aria-live="polite">No video uploaded yet.</div>
+    <div style="margin-top:16px">
+      <div class="row"><h3>Recent YouTube uploads</h3><button type="button" class="secondary" id="youtubeHistoryRefresh">Refresh</button></div>
+      <div id="youtubeUploadHistory" class="muted" style="margin-top:10px">Enter your admin key and refresh to load upload history.</div>
+    </div>
   </div>
 </section>
 
@@ -1718,6 +1722,46 @@ async function refreshYoutubeStatus() {
     });
   } catch (error) { target.textContent = "Status request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server."); }
 }
+async function refreshYoutubeUploadHistory() {
+  const target = $("#youtubeUploadHistory");
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = $("#youtubeAccount").value;
+  if (!key) { target.textContent = "Enter your admin key to view upload history."; return; }
+  target.textContent = "Loading upload history...";
+  try {
+    const query = accountId ? "?account_id=" + encodeURIComponent(accountId) : "";
+    const response = await fetch("/api/youtube/upload" + query, { headers: { "x-auto-ai-admin-key": key } });
+    const data = await youtubeApiData(response);
+    target.replaceChildren();
+    if (!data.uploads.length) { target.textContent = "No YouTube uploads recorded yet."; return; }
+    data.uploads.forEach(upload => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.padding = "10px 0";
+      row.style.borderBottom = "1px solid var(--line)";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = upload.title;
+      const detail = document.createElement("div");
+      detail.className = "muted";
+      detail.textContent = upload.status + " · " + upload.privacy_status + (upload.publish_at ? " · scheduled " + new Date(upload.publish_at).toLocaleString() : "") + " · " + new Date(upload.created_at + (upload.created_at.endsWith("Z") ? "" : "Z")).toLocaleString();
+      info.append(title, detail);
+      if (upload.error) { const error = document.createElement("div"); error.className = "error"; error.textContent = upload.error; info.append(error); }
+      row.append(info);
+      if (upload.video_id) {
+        const link = document.createElement("a");
+        link.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(upload.video_id);
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Open";
+        link.style.color = "#a9bcff";
+        row.append(link);
+      }
+      target.append(row);
+    });
+  } catch (error) { target.textContent = "Could not load upload history: " + error.message; }
+}
+$("#youtubeHistoryRefresh").onclick = refreshYoutubeUploadHistory;
 async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   const status = $("#youtubeUploadStatus");
   const file = fileOverride || $("#youtubeVideoFile").files?.[0];
