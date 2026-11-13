@@ -372,6 +372,9 @@ async function loadAccounts() {
 
     render();
     showMessage("Your channels are loaded from Cloudflare.");
+    if (sessionStorage.getItem("autoAiAdminKey") && youtubeParams.get("youtube") !== "error") {
+      refreshYoutubeStatus();
+    }
   } catch (error) {
     showMessage("Could not load accounts: " + error.message, true);
     $("#accounts").innerHTML =
