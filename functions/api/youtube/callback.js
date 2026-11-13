@@ -3,6 +3,7 @@ import { json, redirect, callbackUrl, ensureYoutubeTables, encryptSecret } from 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const appUrl = new URL("/", request.url);
+  let returnAccountId = "";
   try {
     if (!env.DB) throw new Error("Database binding DB is missing.");
     if (url.searchParams.has("error")) throw new Error("Google authorisation was cancelled or denied.");
@@ -13,6 +14,7 @@ export async function onRequestGet({ request, env }) {
     await ensureYoutubeTables(env.DB);
     const pending = await env.DB.prepare("SELECT account_id, expires_at FROM youtube_oauth_states WHERE state = ?")
       .bind(state).first();
+    returnAccountId = pending?.account_id || "";
     await env.DB.prepare("DELETE FROM youtube_oauth_states WHERE state = ?").bind(state).run();
     if (!pending || Number(pending.expires_at) < Math.floor(Date.now() / 1000)) {
       throw new Error("This connection request expired. Please try connecting again.");
@@ -56,9 +58,11 @@ export async function onRequestGet({ request, env }) {
       .bind(pending.account_id, channel.id, channel.snippet?.title || "YouTube channel", encryptedRefreshToken).run();
 
     appUrl.searchParams.set("youtube", "connected");
+    appUrl.searchParams.set("account", pending.account_id);
     return redirect(appUrl.toString());
   } catch (error) {
     appUrl.searchParams.set("youtube", "error");
+    if (returnAccountId) appUrl.searchParams.set("account", returnAccountId);
     appUrl.searchParams.set("message", String(error.message || "YouTube connection failed.").slice(0, 180));
     return redirect(appUrl.toString());
   }
