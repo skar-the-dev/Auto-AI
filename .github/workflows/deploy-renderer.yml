@@ -22,6 +22,8 @@ jobs:
       - name: Set renderer API secret
         working-directory: renderer
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           RENDERER_API_KEY: ${{ secrets.RENDERER_API_KEY }}
         run: |
           test -n "$RENDERER_API_KEY"
