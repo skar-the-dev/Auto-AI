@@ -28,7 +28,33 @@ function parsePlannerResult(result) {
   throw new Error("The topic understanding response was not valid JSON.");
 }
 
-async function understandBatchTopic(topic, env) {
+
+async function discoverNicheTopic(niche, env, recentTopics = []) {
+  const avoid = recentTopics.length
+    ? "Avoid repeating these recently used topics: " + recentTopics.join(" | ")
+    : "No previous topics are available.";
+  const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    messages: [
+      { role: "system", content: "You are Auto AI's topic discovery researcher. Select one specific, engaging, suitable short-form video topic for the supplied niche. Return valid JSON only." },
+      { role: "user", content: [
+        "Choose one strong topic for a 25–35 second short-form video.",
+        "NICHE: " + niche,
+        avoid,
+        "Choose a focused subject with a clear angle, not a vague category. It must be suitable for a faceless video and have enough factual material to research. Prefer evergreen topics unless the niche itself clearly requires current news. Do not claim it is trending or breaking news unless you have verified live evidence. Do not make up events, people or statistics.",
+        'Return JSON: {"needs_clarification":false,"understood_topic":"A concise specific video topic","topic_reason":"One short sentence explaining why it suits the niche."}'
+      ].join("\\n") }
+    ],
+    max_completion_tokens: 350,
+    temperature: 0.35,
+    response_format: { type: "json_object" },
+    chat_template_kwargs: { enable_thinking: false }
+  });
+  const parsed = parsePlannerResult(result);
+  const topic = String(parsed.understood_topic || "").trim().slice(0, 180);
+  if (topic.length < 8) throw new Error("Auto AI could not find a suitable topic in this niche. Please try again.");
+  return { topic, reason: String(parsed.topic_reason || "Selected automatically for your niche.").slice(0, 240) };
+}
+\nasync function understandBatchTopic(topic, env) {
   const prompt = [
     'Read the whole topic and identify its likely meanings. Do not create content or search yet.',
     'TOPIC: ' + topic,
@@ -73,7 +99,7 @@ export async function onRequestPost({ request, env }) {
 
     const body = await request.json();
     const accountId = String(body.account_id || "").trim();
-    const topic = String(body.topic || "").trim().slice(0, 180);
+    let topic = String(body.topic || "").trim().slice(0, 180);
     if (body.mode === "clarify") {
       if (topic.length < 4) return json({ success: false, error: "Enter a little more detail about the topic." }, 400);
       return json({ success: true, ...await understandBatchTopic(topic, env) });
@@ -95,6 +121,16 @@ export async function onRequestPost({ request, env }) {
       "SELECT id, name, niche FROM accounts WHERE id = ? AND active = 1"
     ).bind(accountId).first();
     if (!account) return json({ success: false, error: "Active account not found. Resume it and try again." }, 404);
+
+    let discovery = null;
+    if (!topic) {
+      const recent = await env.DB.prepare(
+        "SELECT topic FROM scripts WHERE niche = ? ORDER BY created_at DESC LIMIT 20"
+      ).bind(selectedNiche).all().catch(() => ({ results: [] }));
+      discovery = await discoverNicheTopic(selectedNiche, env, (recent.results || []).map(row => row.topic).filter(Boolean));
+      topic = discovery.topic;
+    }
+    const finalTopic = (clarification ? topic + " — " + clarification : (understoodTopic || topic)).slice(0, 180);
 
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS scripts (
@@ -135,7 +171,7 @@ export async function onRequestPost({ request, env }) {
       created,
       count: created.length,
       generated_by: "Cloudflare Workers AI",
-      message: created.length + " AI-generated script drafts saved. Review factual claims before publishing."
+      topic: finalTopic,\n      topic_discovery: discovery,\n      message: created.length + " AI-generated script drafts saved. Review factual claims before publishing."
     }, 201);
   } catch (error) {
     return json({ success: false, error: error.message || "Could not create AI batch." }, 500);
