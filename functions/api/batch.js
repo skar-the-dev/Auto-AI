@@ -29,32 +29,35 @@ function parsePlannerResult(result) {
 }
 
 async function understandBatchTopic(topic, env) {
+  const prompt = [
+    'Read the whole topic and identify its likely meanings. Do not create content or search yet.',
+    'TOPIC: ' + topic,
+    '',
+    'Ask one short clarification when the wording could reasonably mean different things. Options MUST be mutually exclusive, clearly different, and directly answer the ambiguity. Do not offer near-duplicates, different phrasings of the same meaning, or irrelevant metrics. Use plain language, not unexplained jargon.',
+    '',
+    'Special case: if the topic is about biggest/highest earning games, use these distinct meanings:',
+    '1. Games that have made the most money overall from sales, subscriptions and in-game purchases (highest lifetime game revenue).',
+    '2. Games with the largest total esports tournament prize pools.',
+    '3. Games whose professional players have earned the most from tournament winnings over their careers.',
+    'Do not confuse game revenue with esports prize money or player earnings.',
+    '',
+    'For other topics, tailor 2 to 4 options to the actual ambiguity. If there is one obvious meaning, do not ask; set needs_clarification false and state that interpretation.',
+    'Keep the user requested number, subject and constraints. Ask about timeframe or region only if it materially changes the answer and is not already specified.',
+    '',
+    'Return JSON: {"needs_clarification":true,"clarifying_question":"Do you mean...","options":["...","..."],"understood_topic":"..."} or {"needs_clarification":false,"clarifying_question":"","options":[],"understood_topic":"Precise interpretation."}'
+  ].join('\n');
   const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
     messages: [
-      { role: "system", content: "You are Auto AI's topic clarification assistant. Understand the complete topic, resolve ambiguity only when it changes the content direction, and return valid JSON only." },
-      { role: "user", content: `Before creating scripts, decide whether this topic has multiple materially different meanings.
-TOPIC: ${topic}
-
-If it is ambiguous, ask ONE short "Do you mean..." question and provide 2 to 4 distinct options. If it is clear, do not ask anything; restate the intended topic precisely.
-Examples:
-- "biggest earning games" is ambiguous: total game revenue, esports prize pools, or professional player earnings.
-- "facts about the solar system" is clear.
-- "best footballers" may need a timeframe or criteria; ask only if essential.
-Do not search or write scripts.
-
-Return JSON:
-{"needs_clarification":true,"clarifying_question":"Do you mean...","options":["...","..."],"understood_topic":"..."}
-or
-{"needs_clarification":false,"clarifying_question":"","options":[],"understood_topic":"Precise interpretation of the topic."}
-Keep the user's original subject and intent. Never invent extra constraints.` }
+      { role: "system", content: "You are Auto AI's topic clarification assistant. Understand the user's intended subject. Ask one concise clarification only when interpretations would produce substantially different content. Return valid JSON only." },
+      { role: "user", content: prompt }
     ],
     max_completion_tokens: 550,
-    temperature: 0.1,
+    temperature: 0.05,
     response_format: { type: "json_object" },
     chat_template_kwargs: { enable_thinking: false }
   });
   const parsed = parsePlannerResult(result);
-  const options = Array.isArray(parsed.options) ? parsed.options.map(String).map(value => value.trim()).filter(Boolean).slice(0,4) : [];
+  const options = Array.isArray(parsed.options) ? parsed.options.map(value => String(value).trim()).filter(Boolean).slice(0,4) : [];
   return {
     needs_clarification: parsed.needs_clarification === true && Boolean(parsed.clarifying_question) && options.length >= 2,
     clarifying_question: String(parsed.clarifying_question || "").slice(0,300),
