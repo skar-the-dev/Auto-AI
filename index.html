@@ -2022,8 +2022,8 @@ const socialCallbackStatus = socialCallbackPlatform ? socialCallbackParams.get(s
 const socialCallbackMessage = socialCallbackParams.get("message") || "";
 if (socialCallbackPlatform) {
   history.replaceState({}, "", location.pathname);
-  const pendingId = sessionStorage.getItem("autoAiPendingSocialAccount");
-  if (pendingId) sessionStorage.setItem("autoAiOpenAccountAfterOAuth", pendingId);
+  const returnedAccountId = socialCallbackParams.get("account") || sessionStorage.getItem("autoAiPendingSocialAccount") || "";
+  if (returnedAccountId) sessionStorage.setItem("autoAiOpenAccountAfterOAuth", returnedAccountId);
   sessionStorage.removeItem("autoAiPendingSocialAccount");
   sessionStorage.removeItem("autoAiPendingSocialPlatform");
   if (socialCallbackStatus === "error") {
