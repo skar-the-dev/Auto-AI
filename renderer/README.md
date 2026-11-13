@@ -1,0 +1,34 @@
+# Auto AI Cloud Renderer
+
+This folder contains the separate Cloudflare Worker and Container that renders captioned vertical MP4s with FFmpeg. It is separate from the Cloudflare Pages dashboard because Pages Functions cannot directly host a native FFmpeg process.
+
+## Deployment
+
+Cloudflare Containers require the Workers Paid plan. The included GitHub Actions workflow deploys this Worker when files under renderer/ change.
+
+Add these GitHub repository Actions secrets:
+
+- CLOUDFLARE_API_TOKEN — Cloudflare API token with permission to deploy Workers and Containers for this account.
+- CLOUDFLARE_ACCOUNT_ID — Cloudflare account ID.
+- RENDERER_API_KEY — a long random secret used to protect the renderer. Use the same value in the Pages project.
+
+After the first successful deploy, note the Worker URL shown by Wrangler. It will look like https://auto-ai-renderer.YOUR-SUBDOMAIN.workers.dev.
+
+In Cloudflare Pages → auto-ai → Settings → Variables and Secrets, add these for Production (and Preview if needed):
+
+- VIDEO_RENDERER_URL — the Worker URL, without /render.
+- VIDEO_RENDERER_KEY — the exact same value as GitHub secret RENDERER_API_KEY.
+
+Redeploy the Pages project after adding the two values. The /api/render Pages Function proxies authenticated render requests to this Worker.
+
+## Current renderer scope
+
+- Accepts generated MP3 narration and up to 20 scene captions.
+- Produces a 1080 × 1920 H.264/AAC MP4 with timed captions.
+- Runs FFmpeg in a Cloudflare Container, not in the user's browser.
+- Does not yet select or download scene-matched stock footage. The current background is a branded static visual with timed captions; footage licensing and scene matching remain a separate production stage.
+- The first version returns the rendered MP4 to the browser. It does not yet keep a permanent cloud video archive.
+
+## Security
+
+Never commit API keys or OAuth secrets. Rotate the renderer key in GitHub Actions and Cloudflare Pages together if it is exposed.
