@@ -53,6 +53,7 @@ export async function onRequest({ request, env }) {
       const allowedPlatforms = ["youtube", "tiktok", "twitch", "google", "other"];
       const allowedRights = ["Permission confirmed", "Creative Commons", "Public domain", "Needs permission", "Unknown"];
       if (!scriptId || !allowedPlatforms.includes(platform) || !allowedRights.includes(rightsStatus)) return json({ success: false, error: "Choose a script, valid platform and rights status." }, 400);
+      if (["Permission confirmed", "Creative Commons", "Public domain"].includes(rightsStatus) && !rightsNote) return json({ success: false, error: "Add evidence or licence details before marking these rights as cleared." }, 400);
       let parsed;
       try { parsed = new URL(sourceUrl); } catch { return json({ success: false, error: "Enter a valid source URL." }, 400); }
       if (!["http:", "https:"].includes(parsed.protocol)) return json({ success: false, error: "Only HTTP and HTTPS source links are accepted." }, 400);
