@@ -162,11 +162,12 @@ async function searchWeb(query) {
   const relevant = combined.filter(item => {
     const title = String(item.title || "");
     const snippet = String(item.snippet || "");
-    if (subject && !(title + " " + snippet).toLowerCase().replace(/\\s+/g, "").includes("nickmercs")) return false;
+    if (subject && !(title + " " + snippet).toLowerCase().replaceAll(" ", "").includes("nickmercs")) return false;
     const rawKey = String(item.url || "").split("#")[0];
     const key = rawKey.endsWith("/") ? rawKey.slice(0, -1) : rawKey;
     if (!(key.startsWith("https://") || key.startsWith("http://")) || seen.has(key)) return false;
-    return true;
+    if (!(key.startsWith("https://") || key.startsWith("http://")) || seen.has(key)) return false;
+    seen.add(key);
   });
   const score = item => {
     const text = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
