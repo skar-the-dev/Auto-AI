@@ -97,6 +97,30 @@ label {display:grid;gap:6px;color:var(--muted)}
 .checks {display:flex;gap:15px;flex-wrap:wrap}
 .checks label {display:flex;align-items:center}
 #message:empty {display:none}
+
+/* Batch Studio visual refresh */
+.batch-studio {
+  position:relative;overflow:hidden;
+  background:linear-gradient(145deg,rgba(35,54,91,.92),rgba(17,26,45,.98) 58%,rgba(24,34,58,.98));
+  border:1px solid rgba(124,156,255,.32);
+  border-radius:22px;padding:clamp(18px,4vw,30px);
+  box-shadow:0 18px 55px rgba(0,0,0,.22);
+}
+.batch-heading {display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:22px}
+.batch-heading h2 {font-size:clamp(24px,5vw,32px);letter-spacing:-.7px;margin-top:5px}
+.eyebrow {font-size:10px;letter-spacing:1.8px;font-weight:800;color:#9bb5ff}
+.batch-intro {max-width:560px;line-height:1.55;margin:9px 0 0}
+.batch-form {display:grid;gap:17px}
+.batch-form label {gap:8px}
+.batch-form .field-title {font-size:14px;color:#f3f6ff;font-weight:750}
+.batch-form .field-hint {font-size:12px;color:#aab8d2;line-height:1.4}
+.batch-form input,.batch-form select {width:100%;min-height:50px;border-radius:13px;background:rgba(7,14,29,.72);border:1px solid #35486b;padding:13px 14px}
+.batch-form input:focus,.batch-form select:focus {outline:2px solid rgba(124,156,255,.45);border-color:#91aaff}
+.batch-generate {min-height:56px;border-radius:15px;font-size:16px;font-weight:800;background:linear-gradient(100deg,#8ba8ff,#6f8fff);box-shadow:0 8px 24px rgba(83,119,230,.24)}
+.batch-generate span {font-size:20px;margin-right:6px}
+.batch-result {border:1px solid rgba(124,156,255,.2);line-height:1.5}
+@media(min-width:700px) {.batch-form {grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.batch-generate,.batch-result {grid-column:1/-1}}
+
 </style>
 </head>
 
@@ -176,39 +200,56 @@ label {display:grid;gap:6px;color:var(--muted)}
 
 >
 
-<section class="panel" style="margin-top:24px">
-  <div class="row"><h2>Batch Studio</h2><span class="tag">Maximum 6</span></div>
-  <p>Generate up to six AI-written script drafts for one active account at a time. These are scripts, not finished video files; video rendering is a separate step.</p>
-  <form id="batchForm">
-    <label>Account
-      <select id="batchAccount" required>
-        <option value="">Choose an active account</option>
-      </select>
-    </label>
-    <label>Batch topic
-      <input id="batchTopic" required maxlength="180" placeholder="e.g. Interesting facts about space">
-    </label>
-    <label>Number of drafts
-      <select id="batchCount">
-        <option value="1">1 draft</option>
-        <option value="2">2 drafts</option>
-        <option value="3">3 drafts</option>
-        <option value="4">4 drafts</option>
-        <option value="5">5 drafts</option>
-        <option value="6" selected>6 drafts (maximum)</option>
-      </select>
-    </label>
+<section class="panel batch-studio" style="margin-top:24px">
+  <div class="batch-heading">
     <div>
-      <strong>Choose a style for each video</strong>
-      <p class="muted" style="margin:6px 0 10px">Give every draft its own format. You can mix styles in one batch.</p>
-      <div id="batchStyles" style="display:grid;gap:9px"></div>
+      <span class="eyebrow">YOUR CONTENT WORKFLOW</span>
+      <h2>Batch Studio</h2>
+      <p class="batch-intro">Tell Auto AI what you want to make. It will create your video scripts for the selected channel.</p>
     </div>
-    <button type="submit" id="batchButton">Create batch drafts</button>
+    <span class="tag">Up to 6 videos</span>
+  </div>
+  <form id="batchForm" class="batch-form">
+    <label><span class="field-title">1. Choose account</span>
+      <select id="batchAccount" required><option value="">Choose an active account</option></select>
+      <span class="field-hint">Select the channel these videos are for.</span>
+    </label>
+    <label><span class="field-title">2. Choose niche</span>
+      <select id="batchNiche" required>
+        <option value="">Choose a niche</option>
+        <option>Gaming & esports</option>
+        <option>Motivation</option>
+        <option>Facts & education</option>
+        <option>Sports</option>
+        <option>Business & finance</option>
+        <option>History</option>
+        <option>Entertainment & celebrities</option>
+        <option>Technology & AI</option>
+        <option>Travel</option>
+        <option>Food & cooking</option>
+        <option>Stories & mysteries</option>
+        <option>Animals & nature</option>
+        <option>Health & fitness</option>
+        <option>News & current affairs</option>
+        <option value="__account__">Use this account's saved niche</option>
+      </select>
+      <span class="field-hint">Choose a category or use the account's saved niche.</span>
+    </label>
+    <label><span class="field-title">3. What topic should the videos cover?</span>
+      <input id="batchTopic" required maxlength="180" placeholder="e.g. The most unbelievable moments in football">
+      <span class="field-hint">Be as broad or specific as you like. Auto AI will understand the subject.</span>
+    </label>
+    <label><span class="field-title">4. How many videos?</span>
+      <select id="batchCount">
+        <option value="1">1 video</option><option value="2">2 videos</option>
+        <option value="3">3 videos</option><option value="4">4 videos</option>
+        <option value="5">5 videos</option><option value="6" selected>6 videos</option>
+      </select>
+    </label>
+    <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Generate my videos</button>
   </form>
-  <div id="batchResult" class="notice" style="display:none"></div>
+  <div id="batchResult" class="notice batch-result" style="display:none" aria-live="polite"></div>
 </section>
-
-
 
 <section class="panel" id="videoCreatorPanel" style="margin-top:24px">
   <div class="row"><h2>Video Creator</h2><span class="tag">Voice + video assembly</span></div>
@@ -963,36 +1004,19 @@ $("#ideaForm").onsubmit = async event => {
   }
 };
 
-const batchStyleOptions = [
-  ["curiosity", "Curiosity hook"],
-  ["facts", "Facts / list"],
-  ["story", "Story"],
-  ["list", "Quick list"],
-  ["gaming", "Gaming highlights"],
-  ["reddit_story", "Reddit-style story"],
-  ["motivation", "Motivation"],
-  ["cinematic", "Cinematic storytelling"],
-  ["mystery", "Mystery / shocking story"]
-];
-function renderBatchStyles() {
-  const count = Number($("#batchCount").value || 1);
-  const holder = $("#batchStyles");
-  if (!holder) return;
-  const previous = [...holder.querySelectorAll("select")].map(select => select.value);
-  holder.replaceChildren();
-  for (let i = 0; i < count; i++) {
-    const label = document.createElement("label");
-    label.textContent = "Video " + (i + 1) + " style";
-    const select = document.createElement("select");
-    select.dataset.videoStyle = String(i);
-    batchStyleOptions.forEach(([value, title]) => select.add(new Option(title, value)));
-    select.value = previous[i] || batchStyleOptions[i % batchStyleOptions.length][0];
-    label.append(select);
-    holder.append(label);
+function syncBatchNiche() {
+  const account = accounts.find(item => item.id === $("#batchAccount").value);
+  const select = $("#batchNiche");
+  if (!select) return;
+  const savedNiche = account && account.niche ? account.niche.trim() : "";
+  const option = [...select.options].find(item => item.value.toLowerCase() === savedNiche.toLowerCase());
+  if (savedNiche && !option) {
+    const custom = new Option(savedNiche + " (account niche)", savedNiche);
+    select.insertBefore(custom, select.querySelector('option[value="__account__"]'));
   }
+  if (savedNiche) select.value = option ? option.value : savedNiche;
 }
-$("#batchCount").addEventListener("change", renderBatchStyles);
-renderBatchStyles();
+$("#batchAccount").addEventListener("change", syncBatchNiche);
 
 $("#batchForm").onsubmit = async event => {
   event.preventDefault();
@@ -1003,7 +1027,8 @@ $("#batchForm").onsubmit = async event => {
   const batchSettings = {
     account_id: $("#batchAccount").value,
     count: Number($("#batchCount").value),
-    styles: [...$("#batchStyles").querySelectorAll("select")].map(select => select.value)
+    niche: $("#batchNiche").value === "__account__" ? (accounts.find(account => account.id === $("#batchAccount").value)?.niche || "") : $("#batchNiche").value,
+    count: Number($("#batchCount").value)
   };
   button.disabled = true;
   button.textContent = "Understanding topic...";
