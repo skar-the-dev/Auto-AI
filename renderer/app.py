@@ -6,7 +6,7 @@ MAX_BODY = 14 * 1024 * 1024
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 def clean_text(value, limit=300):
-    value = re.sub(r"[\\r\\n\\t]+", " ", str(value or ""))
+    value = re.sub(r"[\r\n\t]+", " ", str(value or ""))
     return value[:limit].strip()
 
 def srt_time(seconds):
@@ -34,7 +34,7 @@ class Handler(BaseHTTPRequestHandler):
             audio = base64.b64decode(payload.get("audio_base64", ""), validate=True)
             if not audio or len(audio) > 10 * 1024 * 1024:
                 return self.reply(400, b'{"error":"A valid voiceover MP3 under 10 MB is required."}', "application/json")
-            scenes = [clean_text(x, 260) for x in scenes if clean_text(x, 260)]
+            scenes = [clean_text(x, 260).replace("-->", "—>") for x in scenes if clean_text(x, 260)]
             if not scenes:
                 scenes = [clean_text(payload.get("title", "Auto AI video"), 100)]
             scenes = scenes[:20]
@@ -42,8 +42,10 @@ class Handler(BaseHTTPRequestHandler):
             with tempfile.TemporaryDirectory() as tmp:
                 audio_path = Path(tmp) / "voice.mp3"
                 srt_path = Path(tmp) / "captions.srt"
+                title_path = Path(tmp) / "title.txt"
                 out_path = Path(tmp) / "render.mp4"
                 audio_path.write_bytes(audio)
+                title_path.write_text(title.replace("'", "’"), encoding="utf-8")
                 probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)], capture_output=True, text=True, timeout=20)
                 duration = float(probe.stdout.strip())
                 if duration <= 0 or duration > 180:
@@ -56,10 +58,9 @@ class Handler(BaseHTTPRequestHandler):
                     start = cursor
                     cursor += duration * weight / total
                     end = min(duration, cursor)
-                    entries.append(f"{i}\\n{srt_time(start)} --> {srt_time(end)}\\n{scene}\\n")
-                srt_path.write_text("\\n".join(entries), encoding="utf-8")
-                safe_title = title.replace(":", " ").replace("'", " ").replace("%", " ")
-                vf = f"drawtext=fontfile={FONT}:text='{safe_title}':fontcolor=0x9DB6FF:fontsize=44:x=(w-text_w)/2:y=110,subtitles={srt_path}:force_style='FontName=DejaVu Sans,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=250'"
+                    entries.append(f"{i}\n{srt_time(start)} --> {srt_time(end)}\n{scene}\n")
+                srt_path.write_text("\n".join(entries), encoding="utf-8")
+                vf = f"drawtext=fontfile={FONT}:textfile={title_path}:fontcolor=0x9DB6FF:fontsize=44:x=(w-text_w)/2:y=110,subtitles={srt_path}:force_style='FontName=DejaVu Sans,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=250'"
                 cmd = ["ffmpeg","-y","-f","lavfi","-i",f"color=c=0x101A30:s=1080x1920:r=30:d={duration:.3f}","-i",str(audio_path),"-vf",vf,"-c:v","libx264","-preset","veryfast","-tune","stillimage","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-shortest","-movflags","+faststart",str(out_path)]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
                 if result.returncode != 0:
