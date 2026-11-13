@@ -259,12 +259,12 @@ function parseAnswer(result) {
   if (!candidate) {
     const seen = new Set();
     const findText = (value, depth = 0) => {
-      if (depth > 5 || value == null) return "";
-      if (typeof value === "string") return value.trim();
-      if (typeof value !== "object" || seen.has(value)) return "";
+      if (depth > 6 || value == null || typeof value !== "object" || seen.has(value)) return "";
       seen.add(value);
       for (const key of ["content", "text", "response", "output_text", "answer"]) {
-        const found = findText(value[key], depth + 1);
+        const child = value[key];
+        if (typeof child === "string" && child.trim()) return child.trim();
+        const found = findText(child, depth + 1);
         if (found) return found;
       }
       for (const child of Object.values(value)) {
@@ -275,27 +275,42 @@ function parseAnswer(result) {
     };
     candidate = findText(result);
   }
-  if (candidate && typeof candidate === "object") {
-    if (typeof candidate.answer === "string") return candidate;
-    candidate = JSON.stringify(candidate);
-  }
-  if (typeof candidate === "string" && candidate.trim()) {
-    const cleaned = candidate.trim()
-      .replace(/^\`\`\`(?:json)?\s*/i, "")
-      .replace(/\s*\`\`\`$/, "");
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start >= 0 && end > start) {
+  const unwrap = value => {
+    if (value && typeof value === "object") {
+      if (typeof value.answer === "string") return value;
+      if (typeof value.response === "string") return { answer: value.response };
+      return null;
+    }
+    if (typeof value !== "string") return null;
+    let cleaned = value.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+    for (const attempt of [cleaned, cleaned.replace(/\\n/g, "\n")]) {
       try {
-        const parsed = JSON.parse(cleaned.slice(start, end + 1));
+        const parsed = JSON.parse(attempt);
         if (parsed && typeof parsed === "object") {
           if (typeof parsed.answer === "string") return parsed;
           if (typeof parsed.response === "string") return { answer: parsed.response };
         }
       } catch {}
     }
+    const first = cleaned.indexOf("{");
+    const last = cleaned.lastIndexOf("}");
+    if (first >= 0 && last > first) {
+      try {
+        const parsed = JSON.parse(cleaned.slice(first, last + 1));
+        if (typeof parsed.answer === "string") return parsed;
+        if (typeof parsed.response === "string") return { answer: parsed.response };
+      } catch {}
+    }
+    return null;
+  };
+  const parsed = unwrap(candidate);
+  if (parsed) {
+    if (typeof parsed.answer === "string") parsed.answer = parsed.answer.replace(/\\n/g, "\n");
+    return parsed;
+  }
+  if (typeof candidate === "string" && candidate.trim()) {
     return {
-      answer: cleaned,
+      answer: candidate.trim().replace(/\\n/g, "\n"),
       confidence: "low",
       coverage_note: "The model returned an unstructured answer. Treat it as provisional and verify the cited sources.",
       key_points: []
@@ -304,7 +319,6 @@ function parseAnswer(result) {
   const shape = result && typeof result === "object" ? Object.keys(result).join(", ") : typeof result;
   throw new Error("The research model returned an unsupported response format (" + shape + ").");
 }
-
 export async function onRequestPost({ request, env }) {
   try {
     if (!env?.AI || typeof env.AI.run !== "function") {
