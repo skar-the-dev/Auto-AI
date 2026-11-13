@@ -211,8 +211,8 @@ label {display:grid;gap:6px;color:var(--muted)}
 
 
 <section class="panel" id="videoCreatorPanel" style="margin-top:24px">
-  <div class="row"><h2>Video Creator</h2><span class="tag">On-device test</span></div>
-  <p>Turn a saved script into a short vertical video draft on this device. This first test renders animated backgrounds and scene captions; voiceover, stock footage and cloud saving are not connected yet.</p>
+  <div class="row"><h2>Video Creator</h2><span class="tag">Voice + video assembly</span></div>
+  <p>Turn a saved script into a vertical video with AI narration and animated scene captions. Rendering happens on this device; keep this page open until export finishes.</p>
   <label>Saved script
     <select id="renderScript">
       <option value="">Choose a saved script</option>
@@ -1200,9 +1200,9 @@ $("#renderVideo").onclick = async () => {
     status.textContent = "Choose a saved script first.";
     return;
   }
-  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream || !window.AudioContext) {
     status.style.display = "block";
-    status.textContent = "This browser does not support on-device video recording. Try the latest Safari on your iPhone.";
+    status.textContent = "This browser does not support local video and audio recording. Try the latest Safari or Chrome on your iPhone.";
     return;
   }
 
@@ -1215,6 +1215,13 @@ $("#renderVideo").onclick = async () => {
   const lines = scenes.map(scene => String(scene.text || scene.visual || "").trim()).filter(Boolean);
   if (!lines.length) lines.push(item.title);
 
+  const narration = String(script.voiceover || script.narration || script.hook || lines.join(". ")).trim();
+  if (narration.length < 10) {
+    status.style.display = "block";
+    status.textContent = "This script needs a little more narration before it can become a video.";
+    return;
+  }
+
   const mimeTypes = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
   const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
   if (!mimeType) {
@@ -1224,44 +1231,104 @@ $("#renderVideo").onclick = async () => {
   }
 
   button.disabled = true;
-  button.textContent = "Rendering on your iPhone...";
+  button.textContent = "Preparing narration...";
   status.style.display = "block";
-  status.textContent = "Preparing a 9:16 silent visual draft. Keep this page open until rendering finishes.";
+  status.textContent = "Generating the AI voiceover first. Keep Auto AI open while it works.";
 
-  let stream;
+  let videoStream;
+  let mixedStream;
   let recorder;
-  const chunks = [];
+  let audioContext;
+  let audioUrl;
+  let chunks = [];
   try {
-    stream = canvas.captureStream(24);
-    recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1800000 });
+    const voiceResponse = await fetch("/api/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: narration, speaker: $("#voiceoverSpeaker").value })
+    });
+    if (!voiceResponse.ok) {
+      const raw = await voiceResponse.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "AI voiceover failed (HTTP " + voiceResponse.status + ").");
+    }
+    const audioBlob = await voiceResponse.blob();
+    if (!audioBlob.size || !audioBlob.type.includes("audio")) throw new Error("The voice service did not return an audio file.");
+
+    audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio();
+    audio.src = audioUrl;
+    audio.preload = "auto";
+    audio.playsInline = true;
+    await new Promise((resolve, reject) => {
+      audio.onloadedmetadata = resolve;
+      audio.onerror = () => reject(new Error("The generated narration could not be loaded for video assembly."));
+    });
+    const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : Math.max(8, narration.length / 14);
+    const totalMs = Math.max(5000, audioDuration * 1000);
+    const sceneWeights = lines.map(line => Math.max(1, line.split(/\s+/).length));
+    const totalWeight = sceneWeights.reduce((sum, value) => sum + value, 0);
+    const sceneEnds = [];
+    let accumulated = 0;
+    for (const weight of sceneWeights) {
+      accumulated += weight;
+      sceneEnds.push(totalMs * accumulated / totalWeight);
+    }
+
+    audioContext = new AudioContext();
+    await audioContext.resume();
+    const source = audioContext.createMediaElementSource(audio);
+    const narrationGain = audioContext.createGain();
+    const destination = audioContext.createMediaStreamDestination();
+    narrationGain.gain.value = 1;
+    source.connect(narrationGain);
+    narrationGain.connect(destination);
+
+    videoStream = canvas.captureStream(24);
+    mixedStream = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...destination.stream.getAudioTracks()
+    ]);
+    recorder = new MediaRecorder(mixedStream, { mimeType, videoBitsPerSecond: 2500000 });
     recorder.ondataavailable = event => { if (event.data && event.data.size) chunks.push(event.data); };
     const finished = new Promise((resolve, reject) => {
       recorder.onstop = resolve;
       recorder.onerror = () => reject(new Error("The browser stopped recording unexpectedly."));
     });
-    recorder.start(250);
 
-    const duration = 2400;
+    button.textContent = "Rendering video + voice...";
+    status.textContent = "Recording animated scenes and AI narration together. Keep this page open until it finishes.";
     const start = performance.now();
-    let frame = 0;
+    recorder.start(250);
+    await audio.play();
+
     await new Promise(resolve => {
       const draw = now => {
-        const elapsed = now - start;
-        const index = Math.min(lines.length - 1, Math.floor(elapsed / duration));
-        const local = (elapsed % duration) / duration;
+        const elapsed = Math.min(totalMs, now - start);
+        let index = sceneEnds.findIndex(end => elapsed < end);
+        if (index < 0) index = lines.length - 1;
+        const sceneStart = index === 0 ? 0 : sceneEnds[index - 1];
+        const sceneLength = Math.max(1, sceneEnds[index] - sceneStart);
+        const local = (elapsed - sceneStart) / sceneLength;
         const hue = (220 + index * 29) % 360;
         const gradient = ctx.createLinearGradient(0, 0, 360, 640);
         gradient.addColorStop(0, "hsl(" + hue + " 55% 23%)");
         gradient.addColorStop(1, "hsl(" + ((hue + 38) % 360) + " 60% 8%)");
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 360, 640);
+
         ctx.fillStyle = "rgba(255,255,255,0.10)";
         ctx.beginPath();
         ctx.arc(300, 100, 60 + Math.sin(now / 500) * 8, 0, Math.PI * 2);
         ctx.fill();
+
         ctx.fillStyle = "#9db6ff";
         ctx.font = "bold 16px system-ui";
         ctx.fillText("AUTO AI  •  " + (index + 1) + "/" + lines.length, 26, 52);
+
+        ctx.fillStyle = "rgba(0,0,0,0.30)";
+        ctx.fillRect(16, 215, 328, 210);
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 28px system-ui";
         const words = lines[index].split(/\s+/);
@@ -1276,36 +1343,52 @@ $("#renderVideo").onclick = async () => {
           } else line = test;
         }
         if (line) ctx.fillText(line, 28, y);
+
         ctx.fillStyle = "rgba(255,255,255,0.75)";
         ctx.font = "15px system-ui";
         ctx.fillText("Follow for more", 26, 590);
-        frame++;
-        if (elapsed < lines.length * duration) requestAnimationFrame(draw);
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(26, 608, 308, 4);
+        ctx.fillStyle = "#9db6ff";
+        ctx.fillRect(26, 608, 308 * Math.min(1, elapsed / totalMs), 4);
+
+        if (elapsed < totalMs) requestAnimationFrame(draw);
         else resolve();
       };
       requestAnimationFrame(draw);
     });
-    await new Promise(resolve => setTimeout(resolve, 300));
+
+    if (!audio.paused) audio.pause();
+    await new Promise(resolve => setTimeout(resolve, 350));
     recorder.stop();
     await finished;
+
     const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+    if (!blob.size) throw new Error("The video recorder produced an empty file.");
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
     await saveRenderedVideo(item, blob, ext);
     await loadRenderedVideos();
+
     const url = URL.createObjectURL(blob);
     const preview = $("#renderPreview");
     preview.src = url;
     preview.style.display = "block";
     const link = $("#downloadVideo");
     link.href = url;
-    link.download = item.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() + "." + ext;
-    link.textContent = "Download " + ext.toUpperCase() + " video draft";
+    link.download = item.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() + "-with-voice." + ext;
+    link.textContent = "Download finished video (" + ext.toUpperCase() + ")";
     link.style.display = "inline-block";
-    status.textContent = "Video draft created on this device (" + ext.toUpperCase() + "). This is a silent visual draft; voiceover, real footage and cloud library storage are not connected yet.";
+    status.textContent = "Finished! Your vertical video now includes the AI voiceover and animated scene captions. Preview it below or download the video file.";
   } catch (error) {
-    status.textContent = "Could not render this video: " + error.message + ". Try again with a shorter script and keep Auto AI open.";
+    status.textContent = "Could not assemble this video: " + error.message + ". Try again with a shorter script and keep Auto AI open.";
   } finally {
-    if (stream) stream.getTracks().forEach(track => track.stop());
+    if (recorder && recorder.state !== "inactive") {
+      try { recorder.stop(); } catch {}
+    }
+    if (mixedStream) mixedStream.getTracks().forEach(track => track.stop());
+    if (videoStream) videoStream.getTracks().forEach(track => track.stop());
+    if (audioContext) await audioContext.close().catch(() => {});
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
     button.disabled = false;
     button.textContent = "Create vertical video draft";
   }
