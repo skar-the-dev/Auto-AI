@@ -1579,7 +1579,10 @@ async function refreshYoutubeStatus() {
     sessionStorage.setItem("autoAiAdminKey", key);
     target.replaceChildren();
     if (!data.connections.length) { target.textContent = "No YouTube channels connected yet."; return; }
-    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);\n    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its YouTube destination."; return; }\n    if (!selectedConnection.length) { target.textContent = "No YouTube channel connected to the selected Auto AI channel yet."; return; }\n    selectedConnection.forEach(connection => {
+    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);
+    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its YouTube destination."; return; }
+    if (!selectedConnection.length) { target.textContent = "No YouTube channel connected to the selected Auto AI channel yet."; return; }
+    selectedConnection.forEach(connection => {
       const row = document.createElement("div");
       row.className = "row";
       row.style.marginTop = "8px";
@@ -1602,7 +1605,8 @@ async function refreshYoutubeUploadHistory() {
   const target = $("#youtubeUploadHistory");
   const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
   const accountId = $("#youtubeAccount").value;
-  if (!key) { target.textContent = "Enter your admin key to view upload history."; return; }\n  if (!accountId) { target.textContent = "Choose a channel first."; return; }
+  if (!key) { target.textContent = "Enter your admin key to view upload history."; return; }
+  if (!accountId) { target.textContent = "Choose a channel first."; return; }
   target.textContent = "Loading upload history...";
   try {
     const query = accountId ? "?account_id=" + encodeURIComponent(accountId) : "";
@@ -1857,7 +1861,8 @@ $("#youtubeConnect").onclick = async () => {
     button.disabled = false;
   }
 };
-$("#youtubeRefresh").onclick = refreshYoutubeStatus;\n$("#youtubeAccount").onchange = () => { refreshYoutubeStatus(); refreshTikTokStatus(); refreshYoutubeUploadHistory(); };
+$("#youtubeRefresh").onclick = refreshYoutubeStatus;
+$("#youtubeAccount").onchange = () => { refreshYoutubeStatus(); refreshTikTokStatus(); refreshYoutubeUploadHistory(); };
 
 function tiktokAdminHeaders() {
   return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
@@ -1871,7 +1876,10 @@ async function refreshTikTokStatus() {
     const data = await youtubeApiData(response);
     target.replaceChildren();
     if (!data.connections.length) { target.textContent = "No TikTok accounts connected yet."; return; }
-    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);\n    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its TikTok destination."; return; }\n    if (!selectedConnection.length) { target.textContent = "No TikTok profile connected to the selected Auto AI channel yet."; return; }\n    selectedConnection.forEach(connection => {
+    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);
+    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its TikTok destination."; return; }
+    if (!selectedConnection.length) { target.textContent = "No TikTok profile connected to the selected Auto AI channel yet."; return; }
+    selectedConnection.forEach(connection => {
       const row = document.createElement("div");
       row.className = "row";
       row.style.marginTop = "8px";
