@@ -146,6 +146,56 @@ function buildSearchQueries(question) {
   return [...new Set(queries)].slice(0, 5);
 }
 
+async function understandQuestion(question, env) {
+  const prompt = `Understand the user's COMPLETE question before searching.
+Do not answer it. Plan a focused research strategy for any subject or domain.
+USER QUESTION: ${question}
+
+Identify:
+- intent: what the user wants done (explain, compare, rank, diagnose, calculate, find current news, instructions, identify, summarise, etc.)
+- subject: the exact person, object, event, concept or problem
+- scope: constraints such as number requested, location, date range, game/platform, model/version or audience
+- interpretation: one plain-English sentence explaining what a successful answer must contain
+- search_queries: 4 to 6 distinct web searches phrased naturally to find evidence that directly answers this question. Include the exact subject in each relevant query. Do not search generic fragments or unrelated concepts.
+- evidence_needed: what facts, measurements, primary sources or expert sources are needed
+- freshness: "current" if the question depends on today's/latest status, otherwise "evergreen"
+
+Rules:
+- Preserve the user's intent; do not silently change the subject or broaden the question.
+- Resolve pronouns and context from the question itself; do not invent missing context.
+- For rankings, search for the requested person's own results and define evidence for ranking.
+- For troubleshooting, search for the exact symptoms, device/model and likely diagnostic tests.
+- For science/history, seek authoritative institutions, peer-reviewed research or reputable reference sources.
+- For current events, search recent reporting and primary announcements.
+- For how-to questions, seek official manuals/documentation and safe, relevant instructions.
+- Queries must be directly relevant, not merely share a few keywords.
+Return ONLY valid JSON with those keys.`;
+  const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    messages: [
+      { role: "system", content: "You are a research question analyst. Understand the full intent and produce precise, relevant search plans. Never answer the user." },
+      { role: "user", content: prompt }
+    ],
+    max_completion_tokens: 900,
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    chat_template_kwargs: { enable_thinking: false }
+  });
+  const plan = parseAnswer(result);
+  const queries = Array.isArray(plan.search_queries)
+    ? plan.search_queries.map(item => String(item).trim()).filter(Boolean).slice(0, 6)
+    : [];
+  if (!plan.interpretation || queries.length < 2) throw new Error("Could not build a reliable search plan for this question.");
+  return {
+    intent: String(plan.intent || "research").slice(0, 120),
+    subject: String(plan.subject || question).slice(0, 300),
+    scope: String(plan.scope || "").slice(0, 400),
+    interpretation: String(plan.interpretation).slice(0, 700),
+    evidence_needed: Array.isArray(plan.evidence_needed) ? plan.evidence_needed.map(String).slice(0, 8) : [],
+    freshness: plan.freshness === "current" ? "current" : "evergreen",
+    search_queries: queries
+  };
+}
+
 async function fetchResearchPage(url, query) {
   try {
     const parsedUrl = new URL(url);
@@ -328,9 +378,15 @@ export async function onRequestPost({ request, env }) {
     const question = String(body.question || "").trim().slice(0, 500);
     if (question.length < 4) return json({ success: false, error: "Enter a question with a little more detail." }, 400);
 
+    let researchPlan;
+    try { researchPlan = await understandQuestion(question, env); }
+    catch (error) {
+      return json({ success: false, error: "Auto AI could not confidently understand the question well enough to plan relevant research. Please rephrase it or add a little context. Details: " + (error.message || "Research planning failed.") }, 502);
+    }
+
     let sources = [];
     let searchWarning = "";
-    try { sources = await searchWeb(question); }
+    try { sources = await searchWeb(question, researchPlan.search_queries); }
     catch (error) { searchWarning = error.message || "Web search failed."; }
 
     if (!sources.length) {
@@ -347,6 +403,11 @@ export async function onRequestPost({ request, env }) {
     const prompt = `Answer the user's question using ONLY the research extracts supplied below.
 A source labelled FULL-PAGE EXTRACT was retrieved and parsed from its page. A source labelled SEARCH SNIPPET is only a search-engine excerpt and is weak evidence; do not treat it as a verified result row.
 QUESTION: ${question}
+
+AUTO AI'S INTERPRETATION OF THE QUESTION:
+${JSON.stringify(researchPlan, null, 2)}
+
+Use this interpretation to keep the answer focused on exactly what the user asked. If the retrieved sources do not match this intent, do not force them into the answer; state that relevant evidence could not be found.
 
 RESEARCH EXTRACTS:
 ${evidence}
@@ -438,13 +499,14 @@ RULES:
     return json({
       success: true,
       question,
+      understood_question: researchPlan,
       answer: answer.answer.slice(0, 12000),
       confidence,
       coverage_note: String(answer.coverage_note || "Search extracts are not a full verification of every source.").slice(0, 1200),
       key_points: Array.isArray(answer.key_points) ? answer.key_points.slice(0, 8).map(item => String(item).slice(0, 400)) : [],
       sources: sources.map((source, index) => ({ number: index + 1, title: source.title, url: source.url, extract: source.snippet, full_page_read: Boolean(source.full_text), search_query: source.query || question })),
       researched_at: new Date().toISOString(),
-      research_method: "Multi-query web discovery + direct page retrieval and extraction + Cloudflare Workers AI synthesis",
+      research_method: "AI question understanding + focused multi-query web discovery + direct page retrieval and extraction + evidence-led synthesis",
       limitations: "Some websites block automated retrieval or expose only partial text. Each source is labelled as a full-page extract or a search snippet; verify important claims against primary sources."
     });
   } catch (error) {
