@@ -1293,7 +1293,7 @@ async function refreshYoutubeStatus() {
       row.append(label, disconnect);
       target.append(row);
     });
-  } catch (error) { target.textContent = error.message; }
+  } catch (error) { target.textContent = "Status request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server."); }
 }
 $("#youtubeConnect").onclick = async () => {
   const key = $("#youtubeAdminKey").value.trim();
@@ -1313,7 +1313,10 @@ $("#youtubeConnect").onclick = async () => {
     const data = await youtubeApiData(response);
     sessionStorage.setItem("autoAiAdminKey", key);
     location.href = data.authorization_url;
-  } catch (error) { target.textContent = error.message; button.disabled = false; }
+  } catch (error) {
+    target.textContent = "Connect request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server. Check the browser connection and Cloudflare Function logs.");
+    button.disabled = false;
+  }
 };
 $("#youtubeRefresh").onclick = refreshYoutubeStatus;
 if ($("#youtubeAdminKey")) $("#youtubeAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
