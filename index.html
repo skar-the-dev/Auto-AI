@@ -799,25 +799,77 @@ $("#askForm").onsubmit = async event => {
   const question = $("#askQuestion").value.trim();
   if (!question) return;
   button.disabled = true;
-  button.textContent = "Researching...";
+  button.textContent = "Understanding...";
   result.style.display = "block";
-  result.textContent = "Searching for useful sources and checking the evidence...";
+  result.textContent = "Understanding what you mean before searching...";
   try {
+    const clarification = await apiRequest("/api/ask", {
+      method: "POST",
+      body: JSON.stringify({ question, mode: "clarify" })
+    });
+    let userClarification = "";
+    if (clarification.needs_clarification) {
+      result.replaceChildren();
+      const prompt = document.createElement("h3");
+      prompt.textContent = "Just to make sure I research the right thing...";
+      const reason = document.createElement("p");
+      reason.className = "muted";
+      reason.textContent = clarification.reason || "This question could mean a few different things.";
+      const questionText = document.createElement("p");
+      questionText.style.fontWeight = "700";
+      questionText.textContent = clarification.clarifying_question;
+      const choices = document.createElement("div");
+      choices.style.display = "grid";
+      choices.style.gap = "9px";
+      choices.style.marginTop = "12px";
+      const choicePromise = new Promise(resolve => {
+        clarification.options.forEach(option => {
+          const choice = document.createElement("button");
+          choice.type = "button";
+          choice.textContent = option;
+          choice.onclick = () => resolve(option);
+          choices.append(choice);
+        });
+        const otherWrap = document.createElement("div");
+        otherWrap.style.display = "grid";
+        otherWrap.style.gap = "8px";
+        const otherInput = document.createElement("input");
+        otherInput.placeholder = "Or tell Auto AI what you mean...";
+        otherInput.maxLength = 400;
+        const otherButton = document.createElement("button");
+        otherButton.type = "button";
+        otherButton.className = "secondary";
+        otherButton.textContent = "Use my explanation";
+        otherButton.onclick = () => {
+          if (otherInput.value.trim()) resolve(otherInput.value.trim());
+        };
+        otherWrap.append(otherInput, otherButton);
+        choices.append(otherWrap);
+      });
+      result.append(prompt, reason, questionText, choices);
+      button.textContent = "Waiting for your clarification...";
+      userClarification = await choicePromise;
+    } else {
+      userClarification = clarification.assumption || "";
+    }
+
+    button.textContent = "Researching...";
+    result.replaceChildren();
+    result.textContent = "Searching for relevant sources and checking the evidence...";
     const data = await apiRequest("/api/ask", {
       method: "POST",
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question, clarification: userClarification, mode: "research" })
     });
     result.replaceChildren();
     const heading = document.createElement("h3");
     heading.textContent = "Research answer";
     const confidence = document.createElement("div");
     confidence.className = "tag";
-    confidence.textContent = "Evidence confidence: " + data.confidence.toUpperCase();
+    confidence.textContent = "Evidence confidence: " + String(data.confidence || "low").toUpperCase();
     const answer = document.createElement("div");
     answer.style.whiteSpace = "pre-wrap";
     answer.style.lineHeight = "1.65";
     answer.style.marginTop = "12px";
-    // Defensively unwrap a model response that was accidentally returned as JSON text.
     let displayAnswer = String(data.answer || "");
     try {
       const trimmed = displayAnswer.trim();
@@ -827,12 +879,12 @@ $("#askForm").onsubmit = async event => {
         else if (typeof parsed.response === "string") displayAnswer = parsed.response;
       }
     } catch {}
-    displayAnswer = displayAnswer.replace(/\\\\n/g, "\\n").replace(/\\r/g, "");
+    displayAnswer = displayAnswer.replace(/\\n/g, "\n").replace(/\r/g, "");
     displayAnswer = displayAnswer.replace(/\*\*(.*?)\*\*/g, "$1");
     answer.textContent = displayAnswer;
     const note = document.createElement("p");
     note.className = "muted";
-    note.textContent = data.coverage_note;
+    note.textContent = data.coverage_note || "";
     const sourceHeading = document.createElement("h3");
     sourceHeading.textContent = "Sources found";
     sourceHeading.style.marginTop = "18px";
