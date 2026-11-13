@@ -310,7 +310,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 
 <section class="panel" id="sourceManager" style="margin-top:18px">
   <div class="row"><h2>Source & Copyright Manager</h2><span class="tag">Multi-platform</span></div>
-  <p>Search for relevant clips across YouTube, TikTok, Twitch and Google. Save original links, creator details and usage-rights evidence against a script. Credits are added to the YouTube description automatically. A credit is not permission to reuse footage.</p>
+  <p>Collect candidate clips from YouTube, TikTok, Twitch and the wider web even when rights are not yet known. Save the original link and review each clip at the end. Only import media files that the source permits you to download or that you upload yourself; Auto AI will not bypass platform restrictions.</p>
   <label>Saved script<select id="sourceScript"><option value="">Choose a saved script</option></select></label>
   <label>Search topic<input id="sourceSearchQuery" placeholder="Use the script topic or enter a search phrase"></label>
   <div class="actions">
@@ -319,7 +319,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <button type="button" class="secondary" data-source-search="twitch">Search Twitch</button>
     <button type="button" class="secondary" data-source-search="google">Search Google</button>
   </div>
-  <p class="muted">Search opens the platform's own results. Auto AI does not bypass logins, download restrictions or platform permissions.</p>
+  <p class="muted">Search opens the platform's own results. Add any promising result below, even if its rights are unknown. These links are saved as candidates; they are not downloaded automatically.</p>
   <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:12px">
     <h3>Add a source you found</h3>
     <label>Platform<select id="sourcePlatform"><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="twitch">Twitch</option><option value="google">Google / website</option><option value="other">Other</option></select></label>
@@ -328,8 +328,9 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <label>Clip / page title<input id="sourceTitle" maxlength="240" placeholder="What is this source?"></label>
     <label>Usage rights<select id="sourceRights"><option>Needs permission</option><option>Unknown</option><option>Permission confirmed</option><option>Creative Commons</option><option>Public domain</option></select></label>
     <label>Permission or licence details<textarea id="sourceRightsNote" rows="2" maxlength="1000" placeholder="Licence URL, permission reference, attribution wording or restrictions"></textarea></label>
-    <button type="button" id="saveClipSource">Save source & credit</button>
+    <button type="button" id="saveClipSource">Save candidate for review</button>
   </div>
+  <div class="notice"><strong>Final review rule:</strong> rights status and your review decision are separate. You can save anything as a candidate, but a clip must be explicitly marked Approved with a review note before the YouTube upload flow will accept it. Approval is your own decision, not a legal clearance or a guarantee that reuse is lawful.</div>
   <div id="sourceManagerStatus" class="notice" aria-live="polite">Choose a saved script to manage its sources.</div>
   <div id="sourceRecords" class="grid"></div>
 </section>
@@ -1677,20 +1678,38 @@ async function loadClipSources() {
   if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above to load source records."; return []; }
   try {
     const data = await sourceApi("/api/sources?script_id=" + encodeURIComponent(scriptId)), sources = data.sources || [];
-    status.textContent = sources.length + " source(s) saved. Review each rights status before using its footage.";
-    if (!sources.length) target.textContent = "No sources saved for this script yet.";
+    const approved = sources.filter(source => source.review_status === "Approved").length;
+    status.textContent = sources.length + " candidate(s) saved · " + approved + " approved · " + (sources.length-approved) + " awaiting/rejected. Rights status is recorded separately.";
+    if (!sources.length) target.textContent = "No candidates saved for this script yet.";
     sources.forEach(source => {
       const card = document.createElement("article"); card.className = "account";
-      const heading = document.createElement("strong"); heading.textContent = source.title || source.creator || source.platform.toUpperCase() + " source";
-      const detail = document.createElement("p"); detail.className = "muted"; detail.textContent = source.platform.toUpperCase() + " · " + (source.creator || "Creator not recorded") + " · " + source.rights_status;
+      const heading = document.createElement("strong"); heading.textContent = source.title || source.creator || source.platform.toUpperCase() + " candidate";
+      const detail = document.createElement("p"); detail.className = "muted";
+      detail.textContent = source.platform.toUpperCase() + " · " + (source.creator || "Creator not recorded") + " · Rights: " + source.rights_status + " · Review: " + (source.review_status || "Pending review");
       const link = document.createElement("a"); link.href = source.url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Open original source";
       const note = document.createElement("p"); note.className = "muted"; note.textContent = source.rights_note || "No licence or permission evidence recorded.";
-      const remove = makeButton("Remove source", "danger");
-      remove.onclick = async () => { if (!confirm("Remove this source and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method: "DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove source: " + error.message; } };
-      card.append(heading, detail, link, note, remove); target.append(card);
+      const reviewNote = document.createElement("textarea"); reviewNote.rows = 2; reviewNote.maxLength = 1000; reviewNote.placeholder = "Your review note (required to approve/reject)";
+      reviewNote.value = source.review_note || "";
+      const saveReview = async decision => {
+        try {
+          await sourceApi("/api/sources", { method:"PATCH", body:JSON.stringify({ id:source.id, review_status:decision, review_note:reviewNote.value.trim() }) });
+          await loadClipSources();
+        } catch (error) { status.textContent = "Could not save review: " + error.message; }
+      };
+      const approve = makeButton("Approve after checking", "");
+      approve.onclick = () => {
+        if (!confirm("You are confirming that you have reviewed this clip and accept responsibility for deciding whether it may be used. This does not create permission or override copyright law. Continue?")) return;
+        saveReview("Approved");
+      };
+      const reject = makeButton("Reject this clip", "secondary"); reject.onclick = () => saveReview("Rejected");
+      const reset = makeButton("Return to pending", "secondary"); reset.onclick = () => saveReview("Pending review");
+      const remove = makeButton("Remove candidate", "danger");
+      remove.onclick = async () => { if (!confirm("Remove this candidate and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method:"DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove candidate: " + error.message; } };
+      const actions = document.createElement("div"); actions.className = "actions"; actions.append(approve,reject,reset,remove);
+      card.append(heading,detail,link,note,reviewNote,actions); target.append(card);
     });
     return sources;
-  } catch (error) { status.textContent = "Could not load sources: " + error.message; return []; }
+  } catch (error) { status.textContent = "Could not load candidates: " + error.message; return []; }
 }
 $("#sourceScript").onchange = loadClipSources;
 document.querySelectorAll("[data-source-search]").forEach(button => { button.onclick = () => {
@@ -1708,7 +1727,7 @@ $("#saveClipSource").onclick = async () => {
     await sourceApi("/api/sources", { method:"POST", body:JSON.stringify({ script_id:scriptId, platform:$("#sourcePlatform").value, url:$("#sourceUrl").value.trim(), creator:$("#sourceCreator").value.trim(), title:$("#sourceTitle").value.trim(), rights_status:$("#sourceRights").value, rights_note:$("#sourceRightsNote").value.trim() }) });
     $("#sourceUrl").value=""; $("#sourceCreator").value=""; $("#sourceTitle").value=""; $("#sourceRightsNote").value="";
     await loadClipSources();
-  } catch(error) { status.textContent = "Could not save source: " + error.message; } finally { button.disabled=false; }
+  } catch(error) { status.textContent = "Could not save candidate: " + error.message; } finally { button.disabled=false; }
 };
 function formatSourceCredits(sources) {
   if (!sources.length) return "";
@@ -1736,8 +1755,8 @@ async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   if (selectedSourceScript) {
     const sourceData = await sourceApi("/api/sources?script_id=" + encodeURIComponent(selectedSourceScript));
     const sources = sourceData.sources || [];
-    const blocked = sources.filter(source => ["Needs permission", "Unknown"].includes(source.rights_status));
-    if (blocked.length) throw new Error(blocked.length + " source(s) still need permission or rights verification. Update their rights status before publishing.");
+    const unreviewed = sources.filter(source => source.review_status !== "Approved");
+    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) are not approved in Final Clip Review. Review each candidate and record your decision before uploading.");
     const credits = formatSourceCredits(sources).slice(-4800);
     description = description.slice(0, Math.max(0, 5000 - credits.length)) + credits;
     $("#youtubeVideoDescription").value = description;
