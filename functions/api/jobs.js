@@ -30,6 +30,16 @@ export async function onRequest({ request, env }) {
       return json({ success: true, jobs: result.results || [] });
     }
 
+    if (request.method === "DELETE") {
+      const id = new URL(request.url).searchParams.get("id");
+      if (!id) return json({ success: false, error: "Production job ID is required." }, 400);
+      const result = await env.DB.prepare(
+        "DELETE FROM production_jobs WHERE id = ?"
+      ).bind(id).run();
+      if (!result.meta?.changes) return json({ success: false, error: "Queue item not found." }, 404);
+      return json({ success: true, message: "Removed from production progress. The saved script remains in Video Library." });
+    }
+
     if (request.method === "POST") {
       const body = await request.json();
       const scriptId = String(body.script_id || "").trim();
