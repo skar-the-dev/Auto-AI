@@ -1,0 +1,2038 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Auto AI">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml">
+<title>Auto AI</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#0b1020;
+  --panel:#141c30;
+  --line:#283550;
+  --muted:#9ba9c3;
+  --accent:#7c9cff;
+  --green:#4bd6a0;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  background:radial-gradient(circle at top,#172544,var(--bg) 48%);
+  color:#f4f7ff;
+  font:15px system-ui,-apple-system,sans-serif;
+}
+main {max-width:1100px;margin:auto;padding:28px 18px}
+header {
+  display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:26px;
+}
+h1 {margin:0;font-size:30px}
+h1 span {color:var(--accent)}
+h2 {margin:0}
+h3 {margin:0}
+p {color:var(--muted)}
+button,input,select {
+  font:inherit;border-radius:10px;
+  border:1px solid var(--line);
+  padding:11px 13px;
+  background:#0e1628;color:#f4f7ff;
+}
+button {
+  cursor:pointer;background:var(--accent);
+  color:#081126;border:0;font-weight:650;
+}
+button:disabled {opacity:.5;cursor:wait}
+button.secondary {
+  background:#202d47;color:#eaf0ff;
+  border:1px solid var(--line);
+}
+button.danger {background:#462334;color:#ffdce5}
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  gap:14px;
+}
+.panel,.account {
+  background:#121b2e;border:1px solid var(--line);
+  border-radius:16px;padding:18px;
+}
+.stat {font-size:26px;font-weight:750}
+.muted {color:var(--muted);font-size:13px}
+.toolbar {display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}
+.account {display:flex;flex-direction:column;gap:12px}
+.queue-card {position:relative;padding-top:46px}
+.queue-delete {position:absolute;top:10px;right:10px;width:32px;min-height:32px;height:32px;padding:0;border-radius:50%;font-size:20px;line-height:1;background:rgba(91,115,157,.2);border:1px solid rgba(160,180,220,.25);color:#dce6ff;box-shadow:none!important}
+.queue-delete:hover {background:#542b40;color:#fff}
+
+.tag {
+  display:inline-block;background:#202d47;
+  border-radius:20px;padding:5px 9px;
+  font-size:12px;color:#cbd7f4;
+}
+.row {
+  display:flex;justify-content:space-between;
+  align-items:center;gap:8px;
+}
+.actions {display:flex;gap:8px;flex-wrap:wrap}
+.actions button {font-size:13px;padding:8px 10px}
+.status {color:var(--green)}
+.error {color:#ff9cac}
+.notice {
+  padding:12px 14px;border-radius:10px;
+  background:#202d47;margin:16px 0;
+}
+dialog {
+  background:#121b2e;color:#f4f7ff;
+  border:1px solid var(--line);
+  border-radius:16px;max-width:440px;
+  width:calc(100% - 28px);
+}
+dialog::backdrop {background:rgba(0,0,0,.76);backdrop-filter:blur(5px)}
+#modal {
+  max-height:min(88dvh,760px);overflow:auto;overscroll-behavior:contain;
+  padding:0;border-radius:22px;width:min(520px,calc(100% - 24px));
+}
+#modal form {padding:clamp(18px,4vw,26px);gap:15px}
+#modal h2 {font-size:25px;margin:0 0 2px}
+#modal label {display:grid;gap:7px;font-size:14px}
+#modal input:not([type="checkbox"]) {width:100%;min-height:52px;padding:13px 15px;background:#0d1628;border:1px solid #304361;border-radius:14px}
+#modal .checks {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#modal .checks label {display:flex;align-items:center;gap:9px;padding:12px;border:1px solid #304361;border-radius:13px;background:rgba(32,45,71,.55);min-width:0}
+#modal .checks input {width:20px;height:20px;min-height:0;flex:0 0 auto;accent-color:#8ba6ff}
+#modal .actions {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#modal .actions button {min-height:52px}
+#modalConnections {border-top:1px solid rgba(145,169,215,.18);padding-top:16px;margin-top:2px;display:grid;gap:11px}
+#modalConnections[hidden] {display:none}
+#modalConnections .connect-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#modalConnections button {min-height:48px}
+#modalConnectionStatus,#modalConnectionDetails {margin:0;overflow-wrap:anywhere}
+#modalConnectionDetails:empty {display:none}
+#modalConnections {max-height:42dvh;overflow:auto}
+#modalConnections .connect-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+#modalConnections button {white-space:normal;touch-action:manipulation;cursor:pointer;position:relative;z-index:2}
+#modalConnections .connection-row {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
+#modalConnections .connection-row span {overflow-wrap:anywhere}
+#modalConnections .connection-row button {flex:0 0 auto;min-height:40px}
+@media(max-width:420px) {
+  #modalConnections .connect-grid {grid-template-columns:1fr}
+  #modalConnections .connection-row {align-items:flex-start;flex-direction:column}
+}
+@media(max-width:420px) {
+  #modal .checks {grid-template-columns:1fr}
+  #modal .actions {grid-template-columns:1fr}
+  #modalConnections .connect-grid {grid-template-columns:1fr}
+}
+form {display:grid;gap:12px}
+label {display:grid;gap:6px;color:var(--muted)}
+.checks {display:flex;gap:15px;flex-wrap:wrap}
+.checks label {display:flex;align-items:center}
+#message:empty {display:none}
+
+/* Batch Studio visual refresh */
+.batch-studio {
+  position:relative;overflow:hidden;
+  background:linear-gradient(145deg,rgba(35,54,91,.92),rgba(17,26,45,.98) 58%,rgba(24,34,58,.98));
+  border:1px solid rgba(124,156,255,.32);
+  border-radius:22px;padding:clamp(18px,4vw,30px);
+  box-shadow:0 18px 55px rgba(0,0,0,.22);
+}
+.batch-heading {display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:22px}
+.batch-heading h2 {font-size:clamp(24px,5vw,32px);letter-spacing:-.7px;margin-top:5px}
+.eyebrow {font-size:10px;letter-spacing:1.8px;font-weight:800;color:#9bb5ff}
+.batch-intro {max-width:560px;line-height:1.55;margin:9px 0 0}
+.batch-form {display:grid;gap:17px}
+.batch-form label {gap:8px}
+.batch-form .field-title {font-size:14px;color:#f3f6ff;font-weight:750}
+.batch-form .field-hint {font-size:12px;color:#aab8d2;line-height:1.4}
+.batch-form input,.batch-form select {width:100%;min-height:50px;border-radius:13px;background:rgba(7,14,29,.72);border:1px solid #35486b;padding:13px 14px}
+.batch-form input:focus,.batch-form select:focus {outline:2px solid rgba(124,156,255,.45);border-color:#91aaff}
+.batch-generate {min-height:56px;border-radius:15px;font-size:16px;font-weight:800;background:linear-gradient(100deg,#8ba8ff,#6f8fff);box-shadow:0 8px 24px rgba(83,119,230,.24)}
+.batch-generate span {font-size:20px;margin-right:6px}
+.batch-result {border:1px solid rgba(124,156,255,.2);line-height:1.5}
+@media(min-width:700px) {.batch-form {grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.batch-generate,.batch-result {grid-column:1/-1}}
+
+
+/* Auto AI dashboard refresh — consistent spacing, cards and mobile controls */
+:root {
+  --bg:#080d19; --panel:#111a2b; --line:#263650;
+  --muted:#9eacc4; --accent:#8ba6ff; --green:#54ddb0;
+}
+body {
+  background:
+    radial-gradient(ellipse at 12% -10%,rgba(91,123,220,.20),transparent 38%),
+    radial-gradient(ellipse at 100% 0%,rgba(63,178,157,.08),transparent 30%),
+    #080d19;
+  letter-spacing:.01em;
+}
+main {max-width:1160px;padding:clamp(16px,3vw,34px)}
+header {padding:12px 2px 22px;border-bottom:1px solid rgba(145,169,215,.13);margin-bottom:22px}
+h1 {font-size:clamp(28px,5vw,36px);letter-spacing:-1.2px}
+h1 span {background:linear-gradient(100deg,#a8bdff,#77e3c0);-webkit-background-clip:text;background-clip:text;color:transparent}
+h2 {font-size:clamp(18px,3vw,22px);letter-spacing:-.35px}
+p {line-height:1.55}
+.panel,.account {
+  background:linear-gradient(155deg,rgba(20,31,51,.97),rgba(14,23,39,.98));
+  border:1px solid rgba(133,158,204,.16);
+  border-radius:18px;padding:clamp(15px,2.5vw,22px);
+  box-shadow:0 10px 30px rgba(0,0,0,.12);
+}
+.grid {gap:13px}
+body > main > section.grid:first-of-type .panel {
+  background:linear-gradient(145deg,rgba(27,43,70,.96),rgba(16,27,46,.98));
+  min-height:112px;
+}
+.stat {font-size:30px;letter-spacing:-1px;margin:5px 0}
+.muted {color:#9eacc4}
+.tag {background:rgba(126,155,218,.13);border:1px solid rgba(142,168,224,.16);color:#cbd8f3}
+.row {gap:12px}
+button,input,select {border-radius:12px;min-height:44px}
+button {transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
+button:not(:disabled):active {transform:scale(.98)}
+button:not(.secondary):not(.danger) {box-shadow:0 5px 16px rgba(112,145,255,.16)}
+button.secondary {background:rgba(91,115,157,.17);border:1px solid rgba(133,158,204,.2)}
+input,select {width:100%}
+label {color:#c2cee3;font-weight:550}
+.notice {border:1px solid rgba(133,158,204,.12);border-radius:14px;background:rgba(37,53,79,.55);line-height:1.5}
+#installHelp {background:linear-gradient(110deg,rgba(48,68,110,.72),rgba(27,43,67,.72));border-color:rgba(142,168,224,.2)}
+#message {border-color:rgba(84,221,176,.18)}
+#youtubePanel,#videoCreatorPanel {margin-top:18px!important}
+#youtubePanel .row,#videoCreatorPanel .row,
+#scriptLibrary + .row {margin-bottom:8px}
+#ideaForm {gap:14px}
+#ideaForm button {min-height:48px}
+#ideaResult,#footageStatus,#voiceoverStatus,#renderStatus {overflow-wrap:anywhere}
+#footageResults iframe {display:block}
+#scriptLibrary,#productionQueue,#accounts {margin-top:14px}
+.account {gap:14px}
+.account h3 {font-size:17px;letter-spacing:-.2px}
+.account .actions {margin-top:2px}
+#modal {box-shadow:0 24px 70px rgba(0,0,0,.45)}
+#modal form {gap:15px}
+#modal input {width:100%}
+a {color:#a9bcff;text-underline-offset:3px}
+audio {border-radius:12px}
+video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
+@media(max-width:600px) {
+  main {padding:16px 13px 30px}
+  header {align-items:center}
+  header p {font-size:13px;margin:5px 0 0}
+  header #add {padding:10px 12px;font-size:13px}
+  .grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .panel,.account {border-radius:15px}
+  .row {align-items:flex-start}
+  .actions {gap:7px}
+  .actions button {flex:1}
+  #youtubePanel .actions button {flex:1 1 100%}
+  #renderPreview {max-width:100%!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after {scroll-behavior:auto!important;transition:none!important}
+}
+
+</style>
+</head>
+
+<body>
+<main>
+
+<header>
+  <div>
+    <h1>Auto <span>AI</span></h1>
+    <p>Multi-account short-form content control centre</p>
+  </div>
+  <button id="add">＋ Add account</button>
+</header>
+
+<section class="notice" id="installHelp">
+  <strong>Install Auto AI on your iPhone</strong>
+  <p style="margin:6px 0 0">In Safari, tap Share, then “Add to Home Screen” to use Auto AI like an app. Your dashboard and saved data remain online.</p>
+</section>
+
+<div id="message" class="notice" role="status"></div>
+
+<section class="grid">
+  <div class="panel">
+    <div class="muted">Total accounts</div>
+    <div class="stat" id="total">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="muted">Active accounts</div>
+    <div class="stat" id="active">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="muted">Default schedule</div>
+    <div class="stat">4 hours</div>
+    <div class="muted">Independently configurable per account</div>
+  </div>
+</section>
+
+
+
+
+
+
+<section class="panel" id="sourceManager" style="margin-top:18px">
+  <div class="row"><h2>Source & Copyright Manager</h2><span class="tag">Multi-platform</span></div>
+  <p>Collect candidate clips from YouTube, TikTok, Twitch and the wider web even when rights are not yet known. Save the original link and review each clip at the end. Only import media files that the source permits you to download or that you upload yourself; Auto AI will not bypass platform restrictions.</p>
+  <label>Saved script<select id="sourceScript"><option value="">Choose a saved script</option></select></label>
+  <label>Search topic<input id="sourceSearchQuery" placeholder="Use the script topic or enter a search phrase"></label>
+  <div class="actions">
+    <button type="button" class="secondary" data-source-search="youtube">Search YouTube</button>
+    <button type="button" class="secondary" data-source-search="tiktok">Search TikTok</button>
+    <button type="button" class="secondary" data-source-search="twitch">Search Twitch</button>
+    <button type="button" class="secondary" data-source-search="google">Search Google</button>
+  </div>
+  <p class="muted">Search opens the platform's own results. Add any promising result below, even if its rights are unknown. These links are saved as candidates; they are not downloaded automatically.</p>
+  <div class="actions" style="margin-top:10px">
+    <button type="button" id="autoFindClips">Find & collect clips automatically</button>
+  </div>
+  <div id="autoFindStatus" class="notice" aria-live="polite">Choose a saved script and press Find & collect clips. Auto AI will search the connected YouTube channel's permitted Creative Commons results and save matching candidates automatically.</div>
+  <div id="autoFindResults" class="grid"></div>
+  <p class="muted">Automatic discovery can collect source details and authorised previews. It cannot download YouTube/TikTok audiovisual files through their standard APIs. TikTok's Display API lists videos from an authorised creator account; Twitch download links require the relevant channel/editor authorisation.</p>
+  <div class="notice"><strong>Final review rule:</strong> rights status and your review decision are separate. You can save anything as a candidate, but a clip must be explicitly marked Approved with a review note before the YouTube upload flow will accept it. Approval is your own decision, not a legal clearance or a guarantee that reuse is lawful.</div>
+  <div id="sourceManagerStatus" class="notice" aria-live="polite">Choose a saved script to manage its sources.</div>
+  <div id="sourceRecords" class="grid"></div>
+</section>
+
+<section class="panel batch-studio" style="margin-top:24px">
+  <div class="batch-heading">
+    <div>
+      <span class="eyebrow">YOUR CONTENT WORKFLOW</span>
+      <h2>Content Engine</h2>
+      <p class="batch-intro">Choose your niche and let Auto AI find a topic for you, or enter your own idea. Then create your script drafts.</p>
+    </div>
+    <span class="tag">Up to 6 videos</span>
+  </div>
+  <form id="batchForm" class="batch-form">
+    <label><span class="field-title">1. Choose account</span>
+      <select id="batchAccount" required><option value="">Choose an active account</option></select>
+      <span class="field-hint">Select the channel these videos are for.</span>
+    </label>
+    <label><span class="field-title">2. Choose niche</span>
+      <select id="batchNiche" required>
+        <option value="">Choose a niche</option>
+        <option>Gaming & esports</option>
+        <option>Motivation</option>
+        <option>Facts & education</option>
+        <option>Sports</option>
+        <option>Business & finance</option>
+        <option>History</option>
+        <option>Entertainment & celebrities</option>
+        <option>Technology & AI</option>
+        <option>Travel</option>
+        <option>Food & cooking</option>
+        <option>Stories & mysteries</option>
+        <option>Animals & nature</option>
+        <option>Health & fitness</option>
+        <option>News & current affairs</option>
+        <option value="__account__">Use this account's saved niche</option>
+      </select>
+      <span class="field-hint">Choose a category or use the account's saved niche.</span>
+    </label>
+    <label><span class="field-title">3. Topic (optional)</span>\n      <input id="batchTopic" maxlength="180" placeholder="Leave blank and Auto AI will choose a topic">\n      <span class="field-hint">Leave this empty and Auto AI will discover a topic based on your selected niche, avoiding recently used topics where possible.</span></label>
+    <label><span class="field-title">4. How many videos?</span>
+      <select id="batchCount">
+        <option value="1">1 video</option><option value="2">2 videos</option>
+        <option value="3">3 videos</option><option value="4">4 videos</option>
+        <option value="5">5 videos</option><option value="6" selected>6 videos</option>
+      </select>
+    </label>
+    <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Generate scripts</button>
+  </form>
+  <div id="batchResult" class="notice batch-result" style="display:none" aria-live="polite"></div>
+  <div id="batchDraftReview" style="display:none;margin-top:18px">
+    <div class="row"><h3>Review your new scripts</h3><span class="tag">Edit before production</span></div>
+    <p class="muted">Check each draft, make any changes, then add the scripts you approve to Production Progress.</p>
+    <div id="batchDraftCards" class="grid"></div>
+  </div>
+  <div class="subpanel" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line,#26344a)">
+    <div class="row"><h3>Production progress</h3><span class="tag" id="jobCount">0 waiting</span></div>
+    <p class="muted">Track scripts waiting for the video-rendering stage. Video rendering is not automated yet.</p>
+    <div id="productionQueue" class="grid"><div class="muted">Loading production queue...</div></div>
+  </div>
+</section>
+
+<section class="panel" id="videoCreatorPanel" style="margin-top:24px">
+  <div class="row"><h2>Video Creator</h2><span class="tag">Voice + video assembly</span></div>
+  <p>Turn a saved script into a vertical video with AI narration and animated scene captions. Auto AI generates narration and sends it to the cloud renderer to create a 1080 × 1920 MP4.</p>
+  <label>Saved script
+    <select id="renderScript">
+      <option value="">Choose a saved script</option>
+    </select>
+  </label>
+  <label>AI voice
+    <select id="voiceoverSpeaker">
+      <option value="luna">Luna — warm, natural</option>
+      <option value="asteria">Asteria — clear, upbeat</option>
+      <option value="athena">Athena — confident</option>
+      <option value="orion">Orion — steady, deep</option>
+      <option value="apollo">Apollo — energetic</option>
+      <option value="hera">Hera — expressive</option>
+      <option value="zeus">Zeus — authoritative</option>
+      <option value="atlas">Atlas — grounded</option>
+    </select>
+  </label>
+  <button type="button" class="secondary" id="generateVoiceover">Generate AI voiceover</button>
+  <button type="button" class="secondary" id="findStockFootage">Find real people, teams & gameplay</button>
+  <div id="footageStatus" class="notice" style="display:none"></div>
+  <div id="footageResults" class="grid" style="margin-top:12px"></div>
+  <p class="muted" style="font-size:12px">Searches YouTube for embeddable Creative Commons-labelled results. Review the source and licence terms before reuse. Search results are previews, not permission to download or republish.</p>
+  <div id="voiceoverStatus" class="notice" style="display:none"></div>
+  <audio id="voiceoverPreview" controls playsinline style="display:none;width:100%;margin-top:12px"></audio>
+  <a id="downloadVoiceover" style="display:none;color:#a9bcff;font-weight:700;margin-top:10px" download="auto-ai-voiceover.mp3">Download voiceover MP3</a>
+  <button type="button" id="renderVideo">Create vertical video draft</button>
+  <div id="renderStatus" class="notice" style="display:none"></div>
+  <video id="renderPreview" controls playsinline style="display:none;width:100%;max-width:360px;border-radius:14px;margin-top:12px;background:#000"></video>
+  <a id="downloadVideo" style="display:none;color:#a9bcff;font-weight:700;margin-top:12px" download>Download video draft</a>
+  <div class="notice" style="margin-top:14px"><strong>Saved videos on this iPhone</strong><div id="deviceVideoList" class="muted" style="margin-top:8px">Loading...</div></div>
+  <canvas id="renderCanvas" width="360" height="640" style="display:none"></canvas>
+</section>
+
+
+<section class="panel" style="margin-top:24px">
+  <div class="row"><h2>Video Library</h2><span class="tag" id="scriptCount">0 saved</span></div>
+  <p>Scripts saved here stay in your Cloudflare database. Track each one from draft to completed.</p>
+  <div id="scriptLibrary" class="grid">
+    <div class="muted">Loading your saved scripts...</div>
+  </div>
+</section>
+
+
+<div class="row" style="margin-top:28px">
+  <h2>Your channels</h2>
+  <span class="muted">Saved in Cloudflare</span>
+</div>
+
+<div id="accounts" class="grid" style="margin-top:14px">
+  <div class="panel muted">Loading your channels...</div>
+</div>
+
+<div hidden aria-hidden="true">
+  <select id="youtubeAccount"><option value="">Choose an account</option></select>
+  <input id="youtubeAdminKey" type="password">
+</div>
+<section class="panel" style="margin-top:24px" id="youtubeUploadPanel">
+  <div class="subpanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+    <h3>YouTube video uploads</h3>
+    <p class="muted">Choose a saved script and Auto AI will fill the title, description and tags for you. Check the details, choose visibility and schedule, then authorise the upload.</p>
+    <label>Video details from saved script
+      <select id="youtubeMetadataScript"><option value="">Choose a saved script</option></select>
+    </label>
+    <div id="youtubeMetadataStatus" class="notice" aria-live="polite">Choose a saved script to fill in its YouTube details.</div>
+    <label>Video file
+      <input id="youtubeVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime">
+    </label>
+    <label>Video title (auto-filled)
+      <input id="youtubeVideoTitle" maxlength="100" placeholder="Choose a saved script first">
+    </label>
+    <label>Description (auto-filled)
+      <textarea id="youtubeVideoDescription" rows="5" maxlength="5000" placeholder="Auto AI will create the description from your saved script."></textarea>
+    </label>
+    <label>Tags (auto-filled)
+      <input id="youtubeVideoTags" placeholder="Auto AI will suggest tags from your niche and topic">
+    </label>
+    <label>Visibility
+      <select id="youtubePrivacy">
+        <option value="private">Private</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="public">Public</option>
+      </select>
+    </label>
+    <label>Schedule (optional)
+      <input id="youtubePublishAt" type="datetime-local">
+    </label>
+    <label style="display:flex;gap:10px;align-items:flex-start">
+      <input id="youtubePublishConsent" type="checkbox" style="width:auto;margin-top:3px">
+      <span>I authorise Auto AI to upload the video I select or finish rendering to the connected channel using the visibility and schedule I selected.</span>
+    </label>
+    <button type="button" id="youtubeUpload">Upload to YouTube</button>
+    <div id="youtubeUploadStatus" class="notice" aria-live="polite">No video uploaded yet.</div>
+    <div style="margin-top:16px">
+      <div class="row"><h3>Recent YouTube uploads</h3><button type="button" class="secondary" id="youtubeHistoryRefresh">Refresh</button></div>
+      <div id="youtubeUploadHistory" class="muted" style="margin-top:10px">Enter your admin key and refresh to load upload history.</div>
+    </div>
+  </div>
+</div>
+
+</section>
+</section>\n\n<p class="muted" style="margin-top:24px">
+  Auto AI cloud account dashboard. Video generation,
+  automated scheduling and social publishing still
+  need their separate integrations.
+</p>
+
+</main>
+
+<dialog id="modal">
+  <form id="form">
+    <h2 id="formTitle">Add account</h2>
+    <label>Account name
+      <input name="name" required placeholder="e.g. Daily Viral Clips">
+    </label>
+    <label>Content niche
+      <input name="niche" required placeholder="e.g. Gaming, facts, motivation">
+    </label>
+    <label>Publishing interval (minutes)
+      <input name="interval" type="number" min="60" max="10080" step="30" value="240" required>
+    </label>
+    <div class="checks">
+      <label><input type="checkbox" name="youtube" checked> YouTube Shorts</label>
+      <label><input type="checkbox" name="tiktok" checked> TikTok</label>
+    </div>
+    <div class="actions">
+      <button type="submit" id="saveButton">Save account</button>
+      <button type="button" class="secondary" id="cancel">Cancel</button>
+    </div>
+    <section id="modalConnections" hidden>
+      <h3>Connect this account</h3>
+      <p class="muted" style="margin:0">Your account is saved. Connect its dedicated social profiles here — no need to find the connections further down the page.</p>
+      <label>Auto AI admin access key
+        <input id="modalAdminKey" type="password" autocomplete="current-password" placeholder="Enter your Cloudflare admin key">
+      </label>
+      <div class="connect-grid">
+        <button type="button" id="modalConnectYoutube">Connect YouTube</button>
+        <button type="button" id="modalConnectTiktok" class="secondary">Connect TikTok</button>
+      </div>
+      <div id="modalConnectionStatus" class="notice" aria-live="polite">Save the account, then connect YouTube and/or TikTok.</div>
+      <div id="modalConnectionDetails" class="notice" aria-live="polite"></div>
+      <button type="button" class="secondary" id="modalRefreshConnections">Refresh connection status</button>
+      <button type="button" class="secondary" id="modalDone">Done</button>
+    </section>
+  </form>
+</dialog>
+
+<script>
+const API = "/api/accounts";
+
+let accounts = [];
+let currentScript = null;
+let savedScripts = [];
+let stockFootageByScene = [];
+let editingId = null;
+let busy = false;
+
+const $ = selector => document.querySelector(selector);
+
+// Bind account connection buttons immediately and through delegation. This keeps
+// the controls working even if a later dashboard initialiser fails.
+document.addEventListener("click", event => {
+  const button = event.target.closest("#modalConnectYoutube, #modalConnectTiktok");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const platform = button.id === "modalConnectYoutube" ? "youtube" : "tiktok";
+  const status = document.querySelector("#modalConnectionStatus");
+  if (status) status.textContent = "Connect button pressed. Preparing " + (platform === "youtube" ? "Google / YouTube" : "TikTok") + " authorisation...";
+  if (typeof connectSocialFromModal === "function") {
+    connectSocialFromModal(platform);
+  } else if (status) {
+    status.textContent = "The connection handler did not load. Refresh Auto AI and try again.";
+  }
+}, true);
+
+function showMessage(message, error = false) {
+  const box = $("#message");
+  box.textContent = message;
+  box.className = error ? "notice error" : "notice";
+}
+
+function setBusy(value) {
+  busy = value;
+  $("#add").disabled = value;
+  $("#saveButton").disabled = value;
+}
+
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data.success === false) {
+    throw new Error(data.error || "The request failed.");
+  }
+
+  return data;
+}
+
+function normaliseAccount(account) {
+  const platforms = Array.isArray(account.platforms)
+    ? account.platforms
+    : [];
+
+  return {
+    id: account.id,
+    name: account.name || "",
+    niche: account.niche || "",
+    interval: Number(account.interval_minutes || 240),
+    youtube: platforms.includes("youtube"),
+    tiktok: platforms.includes("tiktok"),
+    active: Boolean(account.active)
+  };
+}
+
+async function loadAccounts() {
+  try {
+    showMessage("Connecting to your cloud database...");
+
+    const data = await apiRequest(API);
+
+    accounts = (data.accounts || []).map(normaliseAccount);
+
+    render();
+    showMessage("Your channels are loaded from Cloudflare.");
+    const reopenId = sessionStorage.getItem("autoAiOpenAccountAfterOAuth");
+    if (reopenId && accounts.some(account => account.id === reopenId)) {
+      sessionStorage.removeItem("autoAiOpenAccountAfterOAuth");
+      openForm(reopenId);
+      const oauthError = sessionStorage.getItem("autoAiOAuthError");
+      const oauthSuccess = sessionStorage.getItem("autoAiOAuthSuccess");
+      if (oauthError) { $("#modalConnectionStatus").textContent = oauthError; sessionStorage.removeItem("autoAiOAuthError"); }
+      else if (oauthSuccess) { $("#modalConnectionStatus").textContent = oauthSuccess; sessionStorage.removeItem("autoAiOAuthSuccess"); }
+      if (sessionStorage.getItem("autoAiAdminKey")) refreshModalConnections();
+    }
+  } catch (error) {
+    showMessage("Could not load accounts: " + error.message, true);
+    $("#accounts").innerHTML =
+      '<div class="panel muted">Unable to load your channels. Please refresh and try again.</div>';
+  }
+}
+
+function render() {
+  $("#total").textContent = accounts.length;
+  const batchSelect = $("#batchAccount");
+  if (batchSelect) {
+    const previous = batchSelect.value;
+    batchSelect.replaceChildren(new Option("Choose an active account", ""));
+    accounts.filter(account => account.active).forEach(account => batchSelect.add(new Option(account.name + " — " + account.niche, account.id)));
+    if (accounts.some(account => account.id === previous && account.active)) batchSelect.value = previous;
+  }
+  const youtubeSelect = $("#youtubeAccount");
+  if (youtubeSelect) {
+    const previousYoutube = youtubeSelect.value;
+    youtubeSelect.replaceChildren(new Option("Choose an account", ""));
+    accounts.forEach(account => youtubeSelect.add(new Option(account.name + " — " + account.niche, account.id)));
+    if (accounts.some(account => account.id === previousYoutube)) youtubeSelect.value = previousYoutube;
+  }
+
+  $("#active").textContent =
+    accounts.filter(account => account.active).length;
+
+  const container = $("#accounts");
+  container.replaceChildren();
+
+  if (!accounts.length) {
+    const empty = document.createElement("div");
+    empty.className = "panel muted";
+    empty.textContent =
+      "No accounts yet. Tap Add account to create your first channel.";
+    container.append(empty);
+    return;
+  }
+
+  accounts.forEach(account => {
+    const card = document.createElement("article");
+    card.className = "account";
+
+    const top = document.createElement("div");
+    top.className = "row";
+
+    const state = document.createElement("span");
+    state.className = "tag";
+    state.textContent = account.active ? "● Active" : "Ⅱ Paused";
+
+    const interval = document.createElement("span");
+    interval.className = "muted";
+    interval.textContent = account.interval + " min";
+
+    top.append(state, interval);
+
+    const name = document.createElement("h3");
+    name.textContent = account.name;
+
+    const niche = document.createElement("div");
+    niche.className = "muted";
+    niche.textContent = account.niche;
+
+    const platforms = document.createElement("div");
+    platforms.className = "actions";
+
+    if (account.youtube) {
+      platforms.append(makeTag("YouTube Shorts"));
+    }
+
+    if (account.tiktok) {
+      platforms.append(makeTag("TikTok"));
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const toggle = makeButton(
+      account.active ? "Pause" : "Resume",
+      "secondary"
+    );
+
+    toggle.onclick = () => updateAccount(account, {
+      active: !account.active
+    });
+
+    const edit = makeButton("Edit", "secondary");
+    edit.onclick = () => openForm(account.id);
+
+    const remove = makeButton("Delete", "danger");
+    remove.onclick = () => deleteAccount(account);
+
+    actions.append(toggle, edit, remove);
+    card.append(top, name, niche, platforms, actions);
+    container.append(card);
+  });
+}
+
+function makeTag(text) {
+  const tag = document.createElement("span");
+  tag.className = "tag";
+  tag.textContent = text;
+  return tag;
+}
+
+function makeButton(text, className) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = text;
+  return button;
+}
+
+function openForm(id = null) {
+  editingId = id;
+
+  const form = $("#form");
+  const account = accounts.find(item => item.id === id);
+
+  $("#formTitle").textContent =
+    account ? "Edit account" : "Add account";
+
+  form.elements.name.value = account?.name || "";
+  form.elements.niche.value = account?.niche || "";
+  form.elements.interval.value = account?.interval || 240;
+  form.elements.youtube.checked = account
+    ? account.youtube : true;
+  form.elements.tiktok.checked = account
+    ? account.tiktok : true;
+  $("#modalConnections").hidden = !account;
+  $("#modalConnectionStatus").textContent = account
+    ? "Connect or manage the social profiles dedicated to this account."
+    : "Save the account first, then connect its YouTube and TikTok profiles here.";
+  $("#modalAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
+  $("#youtubeAdminKey").value = $("#modalAdminKey").value;
+  $("#modalAdminKey").onchange = () => {
+    const value = $("#modalAdminKey").value.trim();
+    if (value) { sessionStorage.setItem("autoAiAdminKey", value); $("#youtubeAdminKey").value = value; }
+  };
+  $("#modalConnectYoutube").hidden = account ? !account.youtube : false;
+  $("#modalConnectTiktok").hidden = account ? !account.tiktok : false;
+  $("#modalConnectionDetails").replaceChildren();
+  $("#saveButton").textContent = account ? "Save changes" : "Save account";
+  $("#modal").showModal();
+  if (account && sessionStorage.getItem("autoAiAdminKey")) refreshModalConnections();
+}
+
+async function updateAccount(account, changes) {
+  if (busy) return;
+
+  try {
+    setBusy(true);
+
+    await apiRequest(API + "?id=" + encodeURIComponent(account.id), {
+      method: "PATCH",
+      body: JSON.stringify(changes)
+    });
+
+    await loadAccounts();
+    showMessage("Account updated successfully.");
+  } catch (error) {
+    showMessage("Could not update account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function deleteAccount(account) {
+  if (busy) return;
+
+  if (!confirm("Delete " + account.name + "?")) return;
+
+  try {
+    setBusy(true);
+
+    await apiRequest(API + "?id=" + encodeURIComponent(account.id), {
+      method: "DELETE"
+    });
+
+    await loadAccounts();
+    showMessage("Account deleted.");
+  } catch (error) {
+    showMessage("Could not delete account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("#add").onclick = () => openForm();
+
+$("#cancel").onclick = () => $("#modal").close();
+$("#modalDone").onclick = () => $("#modal").close();
+
+$("#form").onsubmit = async event => {
+  event.preventDefault();
+
+  if (busy) return;
+
+  const form = event.currentTarget;
+
+  const platforms = [];
+
+  if (form.elements.youtube.checked) platforms.push("youtube");
+  if (form.elements.tiktok.checked) platforms.push("tiktok");
+
+  if (!platforms.length) {
+    showMessage("Choose at least one platform.", true);
+    return;
+  }
+
+  const payload = {
+    name: form.elements.name.value.trim(),
+    niche: form.elements.niche.value.trim(),
+    interval_minutes: Number(form.elements.interval.value),
+    platforms
+  };
+
+  if (!payload.name || !payload.niche) {
+    showMessage("Enter an account name and content niche.", true);
+    return;
+  }
+
+  try {
+    setBusy(true);
+
+    let savedId = editingId;
+    if (editingId) {
+      await apiRequest(API + "?id=" + encodeURIComponent(editingId), {
+        method: "PATCH", body: JSON.stringify(payload)
+      });
+    } else {
+      const created = await apiRequest(API, { method: "POST", body: JSON.stringify(payload) });
+      savedId = created.id;
+    }
+
+    await loadAccounts();
+    if (savedId) {
+      $("#youtubeAccount").value = savedId;
+      $("#youtubeAdminKey").value = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+      $("#modalConnections").hidden = false;
+      $("#modalAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
+      $("#modalConnectYoutube").hidden = !payload.platforms.includes("youtube");
+      $("#modalConnectTiktok").hidden = !payload.platforms.includes("tiktok");
+      $("#modalConnectionStatus").textContent = "Account saved. Connect its selected social platforms below.";
+      $("#formTitle").textContent = "Account saved";
+      $("#saveButton").textContent = "Save changes";
+      editingId = savedId;
+    }
+
+    showMessage(editingId ? "Account saved. Connect its social profiles in the account window." : "New account saved to Cloudflare.");
+  } catch (error) {
+    showMessage("Could not save account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+};
+
+
+
+
+async function loadProductionQueue() {
+  const container = $("#productionQueue");
+  try {
+    const data = await apiRequest("/api/jobs");
+    const jobs = data.jobs || [];
+    $("#jobCount").textContent = jobs.length + " waiting";
+    container.replaceChildren();
+
+    if (!jobs.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "Nothing waiting right now. Your queued scripts will appear here.";
+      container.append(empty);
+      return;
+    }
+
+    jobs.forEach(job => {
+      const card = document.createElement("article");
+      card.className = "account queue-card";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "queue-delete";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Remove " + (job.title || "saved script") + " from production progress");
+      remove.title = "Remove from production progress";
+      remove.onclick = () => removeQueuedJob(job);
+      const title = document.createElement("h3");
+      title.textContent = job.title || "Saved script";
+      const detail = document.createElement("p");
+      detail.className = "muted";
+      detail.textContent = (job.niche || "No niche") + " • " + (job.topic || "");
+      const status = makeTag(job.status);
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = "Waiting for the video-rendering worker. No video has been rendered yet.";
+      card.append(remove, title, detail, status, note);
+      container.append(card);
+    });
+  } catch (error) {
+    container.textContent = "Could not load production progress: " + error.message;
+  }
+}
+
+async function removeQueuedJob(job) {
+  const title = job.title || "this saved script";
+  if (!window.confirm("Remove “" + title + "” from Production Progress? The saved script will remain in Video Library.")) return;
+  try {
+    await apiRequest("/api/jobs?id=" + encodeURIComponent(job.id), { method: "DELETE" });
+    showMessage("Removed from Production Progress. The saved script is still in Video Library.");
+    await loadProductionQueue();
+  } catch (error) {
+    showMessage("Could not remove queue item: " + error.message, true);
+  }
+}
+
+async function queueScript(item) {
+  try {
+    await apiRequest("/api/jobs", {
+      method: "POST",
+      body: JSON.stringify({ script_id: item.id })
+    });
+    showMessage("Script added to the production queue. It is waiting for the video renderer.");
+    await loadProductionQueue();
+  } catch (error) {
+    showMessage("Could not queue script: " + error.message, true);
+  }
+}
+
+async function loadScriptLibrary() {
+  const container = $("#scriptLibrary");
+  try {
+    const data = await apiRequest("/api/scripts");
+    savedScripts = data.scripts || [];
+    const metadataSelect = $("#youtubeMetadataScript");
+    if (metadataSelect) {
+      const previousMetadata = metadataSelect.value;
+      metadataSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => metadataSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previousMetadata)) metadataSelect.value = previousMetadata;
+      else if (savedScripts.length === 1) metadataSelect.value = savedScripts[0].id;
+    }
+    const renderSelect = $("#renderScript");
+    if (renderSelect) {
+      const previous = renderSelect.value;
+      renderSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => renderSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previous)) renderSelect.value = previous;
+    }
+    const sourceSelect = $("#sourceScript");
+    if (sourceSelect) {
+      const previousSource = sourceSelect.value;
+      sourceSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => sourceSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previousSource)) sourceSelect.value = previousSource;
+    }
+    $("#scriptCount").textContent = savedScripts.length + " saved";
+    container.replaceChildren();
+
+    if (!savedScripts.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "No saved scripts yet. Create an outline and tap Save to Video Library.";
+      container.append(empty);
+      return;
+    }
+
+    savedScripts.forEach(item => {
+      const card = document.createElement("article");
+      card.className = "account";
+      const title = document.createElement("h3");
+      title.textContent = item.title;
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      meta.textContent = item.niche + " • " + item.topic;
+      const status = document.createElement("select");
+      ["Draft", "Ready for production", "Completed"].forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        status.append(option);
+      });
+      status.value = item.status;
+      status.onchange = () => updateScriptStatus(item.id, status.value);
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const edit = makeButton("Edit script", "secondary");
+      edit.onclick = () => {
+        const existing = card.querySelector(".script-editor");
+        if (existing) { existing.remove(); edit.textContent = "Edit script"; return; }
+        const editor = document.createElement("div");
+        editor.className = "script-editor notice";
+        editor.style.display = "grid";
+        editor.style.gap = "10px";
+        const field = (labelText, value, multiline = false) => {
+          const label = document.createElement("label");
+          label.textContent = labelText;
+          const input = multiline ? document.createElement("textarea") : document.createElement("input");
+          input.value = value || "";
+          input.style.width = "100%";
+          if (multiline) { input.rows = labelText === "Voiceover" ? 9 : 3; input.style.resize = "vertical"; }
+          label.append(input);
+          editor.append(label);
+          return input;
+        };
+        const titleInput = field("Video title", item.title);
+        const nicheInput = field("Niche", item.niche);
+        const topicInput = field("Topic", item.topic);
+        const hookInput = field("Opening hook", item.script.hook, true);
+        const voiceInput = field("Voiceover", item.script.voiceover, true);
+        const captionInput = field("Caption", item.script.caption, true);
+        const notesInput = field("Production notes (one per line)", Array.isArray(item.script.production_notes) ? item.script.production_notes.join("\n") : "", true);
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const save = makeButton("Save edits");
+        save.onclick = async () => {
+          save.disabled = true; save.textContent = "Saving...";
+          const updatedScript = { ...item.script, hook: hookInput.value.trim(), voiceover: voiceInput.value.trim(), caption: captionInput.value.trim(), production_notes: notesInput.value.split("\n").map(x=>x.trim()).filter(Boolean) };
+          try {
+            await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+              method: "PATCH",
+              body: JSON.stringify({ title: titleInput.value, niche: nicheInput.value, topic: topicInput.value, script: updatedScript })
+            });
+            showMessage("Script edits saved.");
+            await loadScriptLibrary();
+          } catch (error) {
+            showMessage("Could not save edits: " + error.message, true);
+            save.disabled = false; save.textContent = "Save edits";
+          }
+        };
+        const cancel = makeButton("Cancel", "secondary");
+        cancel.onclick = () => { editor.remove(); edit.textContent = "Edit script"; };
+        actions.append(save, cancel);
+        editor.append(actions);
+        card.append(editor);
+        edit.textContent = "Close editor";
+        editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      };
+      const view = makeButton("View script", "secondary");
+      view.onclick = () => {
+        const existing = card.querySelector(".saved-script-detail");
+        if (existing) {
+          existing.remove();
+          view.textContent = "View script";
+          return;
+        }
+        const detail = document.createElement("div");
+        detail.className = "saved-script-detail notice";
+        detail.style.marginTop = "12px";
+        const addSection = (heading, value) => {
+          if (!value) return;
+          const title = document.createElement("strong");
+          title.textContent = heading;
+          const text = document.createElement("p");
+          text.style.whiteSpace = "pre-wrap";
+          text.style.lineHeight = "1.55";
+          text.textContent = value;
+          detail.append(title, text);
+        };
+        addSection("Video style", item.script.video_style || "Style not recorded");
+        addSection("Opening hook", item.script.hook);
+        addSection("FULL VOICEOVER", item.script.voiceover || "No voiceover text was saved in this script.");
+        addSection("Caption", item.script.caption);
+        if (Array.isArray(item.script.production_notes)) addSection("Production notes", item.script.production_notes.join("\\n"));
+        if (Array.isArray(item.script.sources) && item.script.sources.length) {
+          const heading = document.createElement("strong");
+          heading.textContent = "Research sources";
+          detail.append(heading);
+          item.script.sources.forEach(source => {
+            const link = document.createElement("a");
+            link.href = source.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = source.title;
+            link.style.display = "block";
+            link.style.color = "#a9bcff";
+            link.style.margin = "8px 0";
+            detail.append(link);
+          });
+        }
+        card.append(detail);
+        view.textContent = "Hide script";
+        detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      };
+      const queue = makeButton("Queue for production", "secondary");
+      queue.onclick = () => queueScript(item);
+      const remove = makeButton("Delete", "danger");
+      remove.onclick = () => deleteSavedScript(item);
+      actions.append(edit, view, queue, remove);
+      card.append(title, meta, status, actions);
+      container.append(card);
+    });
+  } catch (error) {
+    container.textContent = "Could not load saved scripts: " + error.message;
+  }
+}
+
+async function saveCurrentScript() {
+  if (!currentScript) return;
+  try {
+    await apiRequest("/api/scripts", {
+      method: "POST",
+      body: JSON.stringify(currentScript)
+    });
+    showMessage("Script saved to your Video Library.");
+    await loadScriptLibrary();
+  } catch (error) {
+    showMessage("Could not save script: " + error.message, true);
+  }
+}
+
+async function updateScriptStatus(id, status) {
+  try {
+    await apiRequest("/api/scripts?id=" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    showMessage("Script status updated.");
+  } catch (error) {
+    showMessage("Could not update script: " + error.message, true);
+    await loadScriptLibrary();
+  }
+}
+
+async function deleteSavedScript(item) {
+  if (!confirm("Delete this saved script?")) return;
+  try {
+    await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+      method: "DELETE"
+    });
+    showMessage("Saved script deleted.");
+    await loadScriptLibrary();
+  } catch (error) {
+    showMessage("Could not delete script: " + error.message, true);
+  }
+}
+
+
+
+function renderBatchDraftReview(created) {
+  const wrap = $("#batchDraftReview");
+  const target = $("#batchDraftCards");
+  const ids = new Set((created || []).map(item => item.id));
+  const drafts = savedScripts.filter(item => ids.has(item.id));
+  target.replaceChildren();
+  if (!drafts.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+  drafts.forEach(item => {
+    const card = document.createElement("article");
+    card.className = "account";
+    const title = document.createElement("h3");
+    title.textContent = item.title;
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    meta.textContent = item.niche + " • " + item.topic;
+    const editor = document.createElement("div");
+    editor.style.display = "grid";
+    editor.style.gap = "9px";
+    const makeField = (name, value, rows) => {
+      const label = document.createElement("label");
+      label.textContent = name;
+      const input = rows ? document.createElement("textarea") : document.createElement("input");
+      input.value = value || "";
+      input.style.width = "100%";
+      if (rows) { input.rows = rows; input.style.resize = "vertical"; }
+      label.append(input); editor.append(label); return input;
+    };
+    const titleInput = makeField("Video title", item.title);
+    const hookInput = makeField("Opening hook", item.script.hook, 2);
+    const voiceInput = makeField("Voiceover script", item.script.voiceover, 8);
+    const captionInput = makeField("Caption", item.script.caption, 3);
+    const notesInput = makeField("Production notes (one per line)", (item.script.production_notes || []).join("\n"), 3);
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const save = makeButton("Save edits");
+    save.onclick = async () => {
+      save.disabled = true; save.textContent = "Saving...";
+      try {
+        const script = { ...item.script, hook: hookInput.value.trim(), voiceover: voiceInput.value.trim(),
+          caption: captionInput.value.trim(), production_notes: notesInput.value.split("\n").map(x=>x.trim()).filter(Boolean) };
+        await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+          method: "PATCH", body: JSON.stringify({ title: titleInput.value, script })
+        });
+        showMessage("Script edits saved.");
+        await loadScriptLibrary();
+        renderBatchDraftReview(created);
+      } catch (error) { showMessage("Could not save edits: " + error.message, true); save.disabled = false; save.textContent = "Save edits"; }
+    };
+    const queue = makeButton("Approve & queue", "secondary");
+    queue.onclick = async () => { await queueScript(item); };
+    actions.append(save, queue);
+    card.append(title, meta, editor, actions);
+    target.append(card);
+  });
+}
+
+function syncBatchNiche() {
+  const account = accounts.find(item => item.id === $("#batchAccount").value);
+  const select = $("#batchNiche");
+  if (!select) return;
+  const savedNiche = account && account.niche ? account.niche.trim() : "";
+  const option = [...select.options].find(item => item.value.toLowerCase() === savedNiche.toLowerCase());
+  if (savedNiche && !option) {
+    const custom = new Option(savedNiche + " (account niche)", savedNiche);
+    select.insertBefore(custom, select.querySelector('option[value="__account__"]'));
+  }
+  if (savedNiche) select.value = option ? option.value : savedNiche;
+}
+$("#batchAccount").addEventListener("change", syncBatchNiche);
+
+$("#batchForm").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("#batchButton");
+  const result = $("#batchResult");
+  let topic = $("#batchTopic").value.trim();
+  const niche = $("#batchNiche").value === "__account__"
+    ? (accounts.find(account => account.id === $("#batchAccount").value)?.niche || "")
+    : $("#batchNiche").value;
+  if (!$("#batchAccount").value) { result.style.display = "block"; result.textContent = "Choose an active account first."; return; }
+  if (!niche) { result.style.display = "block"; result.textContent = "Choose a content niche first."; return; }
+  const batchSettings = { account_id: $("#batchAccount").value, count: Number($("#batchCount").value), niche };
+  button.disabled = true;
+  button.textContent = topic ? "Understanding topic..." : "Finding a topic...";
+  result.style.display = "block";
+  result.textContent = topic ? "Auto AI is checking what you mean before creating anything..." : "Auto AI is finding a fresh topic in your selected niche...";
+  try {
+    const clarification = topic
+      ? await apiRequest("/api/batch", { method: "POST", body: JSON.stringify({ mode: "clarify", topic }) })
+      : { understood_topic: "", needs_clarification: false, options: [] };
+    let selectedMeaning = clarification.understood_topic || topic;
+    if (clarification.needs_clarification) {
+      result.replaceChildren();
+      const heading = document.createElement("h3"); heading.textContent = "Quick clarification";
+      const prompt = document.createElement("p"); prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?"; prompt.style.fontWeight = "700";
+      const options = document.createElement("div"); options.style.display = "grid"; options.style.gap = "9px";
+      const chosen = new Promise(resolve => {
+        clarification.options.forEach(option => {
+          const choice = document.createElement("button"); choice.type = "button"; choice.textContent = option; choice.onclick = () => resolve(option); options.append(choice);
+        });
+        const customWrap = document.createElement("div"); customWrap.style.display = "grid"; customWrap.style.gap = "8px";
+        const custom = document.createElement("input"); custom.maxLength = 500; custom.placeholder = "Or type what you mean...";
+        const customButton = document.createElement("button"); customButton.type = "button"; customButton.className = "secondary"; customButton.textContent = "Use my explanation";
+        customButton.onclick = () => { if (custom.value.trim()) resolve(custom.value.trim()); };
+        customWrap.append(custom, customButton); options.append(customWrap);
+      });
+      result.append(heading, prompt, options); button.style.display = "none"; selectedMeaning = await chosen;
+    }
+    button.textContent = "Creating drafts...";
+    result.textContent = topic ? "Creating your batch..." : "Creating scripts for the topic Auto AI discovered...";
+    const data = await apiRequest("/api/batch", {
+      method: "POST",
+      body: JSON.stringify({ ...batchSettings, topic, understood_topic: clarification.understood_topic || topic, clarification: clarification.needs_clarification ? selectedMeaning : "" })
+    });
+    topic = data.topic || topic;
+    result.textContent = data.topic_discovery
+      ? "Auto AI chose: " + topic + ". " + data.topic_discovery.reason + " " + data.message
+      : data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
+    await loadScriptLibrary(); renderBatchDraftReview(data.created || []);
+  } catch (error) {
+    result.textContent = "Batch could not be created: " + error.message;
+  } finally {
+    button.disabled = false; button.style.display = ""; button.textContent = "Generate scripts";
+  }
+};
+
+
+
+function openRenderedVideoDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("auto-ai-rendered-videos", 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("videos")) request.result.createObjectStore("videos", { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function saveRenderedVideo(item, blob, ext) {
+  const db = await openRenderedVideoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("videos", "readwrite");
+    tx.objectStore("videos").put({ id: crypto.randomUUID(), title: item.title, createdAt: new Date().toISOString(), ext, blob });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function loadRenderedVideos() {
+  const target = $("#deviceVideoList");
+  if (!target || !("indexedDB" in window)) return;
+  try {
+    const db = await openRenderedVideoDB();
+    const videos = await new Promise((resolve, reject) => {
+      const req = db.transaction("videos", "readonly").objectStore("videos").getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    target.replaceChildren();
+    if (!videos.length) { target.textContent = "No videos saved on this iPhone yet."; return; }
+    videos.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    videos.forEach(video => {
+      const row = document.createElement("div");
+      row.className = "actions";
+      row.style.marginTop = "10px";
+      const label = document.createElement("span");
+      label.className = "muted";
+      label.textContent = video.title + " • " + new Date(video.createdAt).toLocaleString();
+      const download = makeButton("Download", "secondary");
+      download.onclick = () => {
+        const url = URL.createObjectURL(video.blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = video.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + "." + video.ext;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      };
+      const remove = makeButton("Delete", "danger");
+      remove.onclick = async () => {
+        const db2 = await openRenderedVideoDB();
+        await new Promise((resolve, reject) => {
+          const tx = db2.transaction("videos", "readwrite");
+          tx.objectStore("videos").delete(video.id);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        db2.close();
+        loadRenderedVideos();
+      };
+      row.append(label, download, remove);
+      target.append(row);
+    });
+  } catch (error) {
+    target.textContent = "Saved video storage unavailable: " + error.message;
+  }
+}
+
+let voiceoverObjectUrl = null;
+$("#generateVoiceover").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#voiceoverStatus");
+  const button = $("#generateVoiceover");
+  status.style.display = "block";
+  if (!item) {
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  const script = item.script || {};
+  const voiceText = String(script.voiceover || script.narration || script.hook || "").trim();
+  if (!voiceText) {
+    status.textContent = "This saved script has no voiceover text. Create or edit a script with narration first.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Generating voiceover...";
+  status.textContent = "Creating your AI narration with Cloudflare Workers AI. This can take a little while.";
+  try {
+    const response = await fetch("/api/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: voiceText, speaker: $("#voiceoverSpeaker").value })
+    });
+    if (!response.ok) {
+      const raw = await response.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "Voiceover request failed (HTTP " + response.status + ").");
+    }
+    const blob = await response.blob();
+    if (!blob.size || !blob.type.includes("audio")) throw new Error("The voice service did not return an MP3 audio file.");
+    if (voiceoverObjectUrl) URL.revokeObjectURL(voiceoverObjectUrl);
+    voiceoverObjectUrl = URL.createObjectURL(blob);
+    const player = $("#voiceoverPreview");
+    player.src = voiceoverObjectUrl;
+    player.style.display = "block";
+    const link = $("#downloadVoiceover");
+    link.href = voiceoverObjectUrl;
+    link.style.display = "inline-block";
+    status.textContent = "Your AI voiceover is ready. Play it below or download the MP3. Video audio-mixing is the next production step.";
+  } catch (error) {
+    status.textContent = "Voiceover failed: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Generate AI voiceover";
+  }
+};
+
+$("#findStockFootage").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#footageStatus");
+  const results = $("#footageResults");
+  const button = $("#findStockFootage");
+  status.style.display = "block";
+  results.replaceChildren();
+  if (!item) {
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  const script = item.script || {};
+  const scenes = Array.isArray(script.scenes) && script.scenes.length
+    ? script.scenes
+    : [{ text: script.hook || item.title }, { text: script.voiceover || item.topic }];
+  // Give each scene the wider subject context as well as its own visual details.
+  // This avoids searching generic words like "the crowd celebrates" without the game,
+  // tournament, player or team that the whole video is actually about.
+  const contextParts = [
+    script.title,
+    item.title,
+    item.topic,
+    item.niche,
+    script.topic,
+    script.game,
+    script.tournament,
+    script.event
+  ].filter(value => typeof value === "string" && value.trim());
+  const sceneQueries = scenes.slice(0, 6).map(scene => {
+    const sceneParts = [
+      scene.game,
+      scene.player,
+      scene.person,
+      scene.team,
+      scene.event,
+      scene.tournament,
+      scene.visual,
+      scene.text
+    ].filter(value => typeof value === "string" && value.trim());
+    const combined = [...contextParts, ...sceneParts].join(" ");
+    const unique = [...new Set(combined.split(/\s+/).filter(Boolean))];
+    return unique.slice(0, 18).join(" ").slice(0, 100);
+  }).filter(Boolean);
+  if (!sceneQueries.length) {
+    status.textContent = "This script has no scene details to search.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Finding real footage...";
+  stockFootageByScene = [];
+  try {
+    for (let index = 0; index < sceneQueries.length; index++) {
+      const query = sceneQueries[index];
+      status.textContent = "Searching real footage for scene " + (index + 1) + " of " + sceneQueries.length + ": " + query;
+      const response = await fetch("/api/youtube-footage?q=" + encodeURIComponent(query));
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "Footage search failed (HTTP " + response.status + ").");
+      const clips = data.videos || [];
+      stockFootageByScene[index] = null;
+
+      const card = document.createElement("article");
+      card.className = "notice";
+      card.style.marginTop = "12px";
+      const heading = document.createElement("strong");
+      heading.textContent = "Scene " + (index + 1) + " — " + query;
+      card.appendChild(heading);
+
+      if (!clips.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "No embeddable Creative Commons-labelled videos found for this scene.";
+        card.appendChild(empty);
+      }
+      clips.forEach((clip, clipIndex) => {
+        const option = document.createElement("div");
+        option.style.cssText = "margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)";
+        const title = document.createElement("p");
+        title.textContent = clip.title;
+        title.style.fontWeight = "700";
+        option.appendChild(title);
+        const frame = document.createElement("iframe");
+        frame.src = clip.embedUrl;
+        frame.title = "YouTube preview: " + clip.title;
+        frame.loading = "lazy";
+        frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        frame.allowFullscreen = true;
+        frame.referrerPolicy = "strict-origin-when-cross-origin";
+        frame.style.cssText = "width:100%;aspect-ratio:16/9;border:0;border-radius:10px;background:#000";
+        option.appendChild(frame);
+        const meta = document.createElement("p");
+        meta.textContent = "Channel: " + clip.channel + " • YouTube marks this result Creative Commons; independently verify the actual rights and any third-party content.";
+        option.appendChild(meta);
+        const link = document.createElement("a");
+        link.href = clip.watchUrl;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Open original on YouTube";
+        option.appendChild(link);
+        const choose = document.createElement("button");
+        choose.type = "button";
+        choose.className = "secondary";
+        choose.textContent = "Select for this scene";
+        choose.style.marginTop = "8px";
+        choose.onclick = () => {
+          stockFootageByScene[index] = clip;
+          status.textContent = "Selected footage for scene " + (index + 1) + ". " + stockFootageByScene.filter(Boolean).length + " scene(s) have a reviewed selection. This preview selection is not yet inserted into the exported MP4.";
+          option.querySelectorAll("button").forEach(button => {
+            button.textContent = button === choose ? "Selected ✓" : "Select for this scene";
+          });
+        };
+        option.appendChild(choose);
+        card.appendChild(option);
+      });
+      results.appendChild(card);
+    }
+    status.textContent = "Found footage results for " + sceneQueries.length + " scene(s). Preview and select the best match for each scene. Selections are saved in this page only; the next step is licensed clip import into the MP4 renderer.";
+  } catch (error) {
+    status.textContent = "Footage search stopped: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Find real people, teams & gameplay";
+  }
+};
+
+$("#renderVideo").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#renderStatus");
+  const button = $("#renderVideo");
+  if (!item) { status.style.display = "block"; status.textContent = "Choose a saved script first."; return; }
+  const script = item.script || {};
+  const scenes = Array.isArray(script.scenes) && script.scenes.length
+    ? script.scenes.map(scene => String(scene.text || scene.visual || "").trim()).filter(Boolean)
+    : [script.hook || item.title, script.voiceover || item.topic].map(value => String(value || "").trim()).filter(Boolean);
+  const narration = String(script.voiceover || script.narration || script.hook || scenes.join(". ")).trim();
+  if (narration.length < 10) { status.style.display = "block"; status.textContent = "This script needs more narration before it can become a video."; return; }
+  button.disabled = true;
+  button.textContent = "Rendering in the cloud...";
+  status.style.display = "block";
+  status.textContent = "Generating AI narration, then sending it to Auto AI's cloud video renderer. You can leave the page open while it works.";
+  try {
+    const voiceResponse = await fetch("/api/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: narration, speaker: $("#voiceoverSpeaker").value })
+    });
+    if (!voiceResponse.ok) {
+      const raw = await voiceResponse.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "AI voiceover generation failed.");
+    }
+    const audioBlob = await voiceResponse.blob();
+    if (!audioBlob.size || audioBlob.size > 10 * 1024 * 1024) throw new Error("Generated voiceover is empty or too large for cloud rendering.");
+    const bytes = new Uint8Array(await audioBlob.arrayBuffer());
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    const audioBase64 = btoa(binary);
+    status.textContent = "Voiceover ready. Rendering a 1080 × 1920 MP4 in the cloud...";
+    const renderResponse = await fetch("/api/render", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || ""
+      },
+      body: JSON.stringify({ title: item.title, scenes, audio_base64: audioBase64 })
+    });
+    if (!renderResponse.ok) {
+      const raw = await renderResponse.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "Cloud video rendering failed (HTTP " + renderResponse.status + ").");
+    }
+    const blob = await renderResponse.blob();
+    if (!blob.size || !blob.type.includes("video")) throw new Error("Cloud renderer returned an invalid video file.");
+    await saveRenderedVideo(item, blob, "mp4");
+    await loadRenderedVideos();
+    const url = URL.createObjectURL(blob);
+    const preview = $("#renderPreview");
+    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+    preview.dataset.objectUrl = url;
+    preview.src = url;
+    preview.style.display = "block";
+    const link = $("#downloadVideo");
+    link.href = url;
+    link.download = item.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() + "-auto-ai.mp4";
+    link.textContent = "Download finished MP4";
+    link.style.display = "inline-block";
+    status.textContent = "Cloud render finished successfully. The 1080 × 1920 MP4 has been saved to this device.";
+    if ($("#youtubePublishConsent")?.checked) {
+      const publishButton = $("#youtubeUpload");
+      publishButton.disabled = true;
+      try {
+        status.textContent = "Render finished. Uploading to your authorised YouTube channel...";
+        const published = await uploadYouTubeVideo(blob, item.title);
+        status.textContent = "Cloud render finished and " + published.status.toLowerCase() + " on YouTube: " + published.title;
+      } catch (uploadError) {
+        status.textContent = "Cloud render finished, but YouTube upload needs attention: " + uploadError.message;
+      } finally { publishButton.disabled = false; }
+    }
+  } catch (error) {
+    status.textContent = "Cloud production could not finish: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create vertical video draft";
+  }
+};
+
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+
+async function youtubeApiData(response) {
+  const raw = await response.text();
+  let data;
+  try { data = raw ? JSON.parse(raw) : {}; }
+  catch { throw new Error("YouTube API returned non-JSON (HTTP " + response.status + "): " + raw.slice(0, 220)); }
+  if (!response.ok || !data.success) {
+    throw new Error((data.error || data.message || "YouTube request failed") + " (HTTP " + response.status + ")");
+  }
+  return data;
+}
+function youtubeAdminHeaders() {
+  return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
+}
+async function refreshYoutubeStatus() {
+  const target = $("#youtubeStatus");
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  if (!key) { target.textContent = "Enter the admin access key to check connected channels."; return; }
+  try {
+    const response = await fetch("/api/youtube/status", { headers: { "x-auto-ai-admin-key": key } });
+    const data = await youtubeApiData(response);
+    sessionStorage.setItem("autoAiAdminKey", key);
+    target.replaceChildren();
+    if (!data.connections.length) { target.textContent = "No YouTube channels connected yet."; return; }
+    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);
+    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its YouTube destination."; return; }
+    if (!selectedConnection.length) { target.textContent = "No YouTube channel connected to the selected Auto AI channel yet."; return; }
+    selectedConnection.forEach(connection => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginTop = "8px";
+      const label = document.createElement("span");
+      label.textContent = (connection.account_name || "Auto AI account") + " → " + (connection.channel_title || "YouTube channel") + " (connected)";
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect this YouTube channel from Auto AI?")) return;
+        const result = await fetch("/api/youtube/disconnect", { method: "POST", headers: youtubeAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
+        try { await youtubeApiData(result); }
+        catch (error) { target.textContent = error.message; return; }
+        refreshYoutubeStatus();
+      };
+      row.append(label, disconnect);
+      target.append(row);
+    });
+  } catch (error) { target.textContent = "Status request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server."); }
+}
+async function refreshYoutubeUploadHistory() {
+  const target = $("#youtubeUploadHistory");
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = $("#youtubeAccount").value;
+  if (!key) { target.textContent = "Enter your admin key to view upload history."; return; }
+  if (!accountId) { target.textContent = "Choose a channel first."; return; }
+  target.textContent = "Loading upload history...";
+  try {
+    const query = accountId ? "?account_id=" + encodeURIComponent(accountId) : "";
+    const response = await fetch("/api/youtube/upload" + query, { headers: { "x-auto-ai-admin-key": key } });
+    const data = await youtubeApiData(response);
+    target.replaceChildren();
+    if (!data.uploads.length) { target.textContent = "No YouTube uploads recorded yet."; return; }
+    data.uploads.forEach(upload => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.padding = "10px 0";
+      row.style.borderBottom = "1px solid var(--line)";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = upload.title;
+      const detail = document.createElement("div");
+      detail.className = "muted";
+      detail.textContent = upload.status + " · " + upload.privacy_status + (upload.publish_at ? " · scheduled " + new Date(upload.publish_at).toLocaleString() : "") + " · " + new Date(upload.created_at + (upload.created_at.endsWith("Z") ? "" : "Z")).toLocaleString();
+      info.append(title, detail);
+      if (upload.error) { const error = document.createElement("div"); error.className = "error"; error.textContent = upload.error; info.append(error); }
+      row.append(info);
+      if (upload.video_id) {
+        const link = document.createElement("a");
+        link.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(upload.video_id);
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Open";
+        link.style.color = "#a9bcff";
+        row.append(link);
+      }
+      target.append(row);
+    });
+  } catch (error) { target.textContent = "Could not load upload history: " + error.message; }
+}
+$("#youtubeHistoryRefresh").onclick = refreshYoutubeUploadHistory;
+function sourceAdminKey() { return $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || ""; }
+function sourceApi(url, options = {}) { return apiRequest(url, { ...options, headers: { "x-auto-ai-admin-key": sourceAdminKey(), ...(options.headers || {}) } }); }
+async function loadClipSources() {
+  const scriptId = $("#sourceScript").value, target = $("#sourceRecords"), status = $("#sourceManagerStatus");
+  target.replaceChildren();
+  if (!scriptId) { status.textContent = "Choose a saved script to manage its sources."; return []; }
+  if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above to load source records."; return []; }
+  try {
+    const data = await sourceApi("/api/sources?script_id=" + encodeURIComponent(scriptId)), sources = data.sources || [];
+    const approved = sources.filter(source => source.review_status === "Approved").length;
+    status.textContent = sources.length + " candidate(s) saved · " + approved + " approved · " + (sources.length-approved) + " awaiting/rejected. Rights status is recorded separately.";
+    if (!sources.length) target.textContent = "No candidates saved for this script yet.";
+    sources.forEach(source => {
+      const card = document.createElement("article"); card.className = "account";
+      const heading = document.createElement("strong"); heading.textContent = source.title || source.creator || source.platform.toUpperCase() + " candidate";
+      const detail = document.createElement("p"); detail.className = "muted";
+      detail.textContent = source.platform.toUpperCase() + " · " + (source.creator || "Creator not recorded") + " · Rights: " + source.rights_status + " · Review: " + (source.review_status || "Pending review");
+      const link = document.createElement("a"); link.href = source.url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Open original source";
+      const note = document.createElement("p"); note.className = "muted"; note.textContent = source.rights_note || "No licence or permission evidence recorded.";
+      const mediaLabel = document.createElement("label"); mediaLabel.textContent = source.media_key ? "Imported footage is stored in your private clip library." : "Import a permitted download or a clip file you have the right to use.";
+      const mediaFile = document.createElement("input"); mediaFile.type = "file"; mediaFile.accept = "video/mp4,video/webm,video/quicktime,video/x-m4v"; mediaLabel.append(mediaFile);
+      const importButton = makeButton(source.media_key ? "Replace imported footage" : "Import clip file", "secondary");
+      importButton.onclick = async () => {
+        const file = mediaFile.files && mediaFile.files[0];
+        if (!file) { status.textContent = "Choose a video file first."; return; }
+        if (file.size > 90 * 1024 * 1024) { status.textContent = "Choose a video under 90 MB for this import route."; return; }
+        importButton.disabled = true; status.textContent = "Importing clip into private storage...";
+        try {
+          const form = new FormData(); form.append("script_id", scriptId); form.append("source_id", source.id); form.append("file", file);
+          const response = await fetch("/api/clips/import", { method:"POST", headers:{"x-auto-ai-admin-key":sourceAdminKey()}, body:form });
+          const result = await youtubeApiData(response);
+          status.textContent = "Clip imported to private storage (" + Math.round(file.size/1024/1024*10)/10 + " MB).";
+          await loadClipSources();
+        } catch(error) { status.textContent = "Clip import failed: " + error.message; }
+        finally { importButton.disabled = false; }
+      };
+      const mediaInfo = document.createElement("p"); mediaInfo.className = "muted";
+      mediaInfo.textContent = source.media_key ? "Stored file: " + (source.media_filename || "Imported clip") + " · " + Math.round((source.media_size || 0)/1024/1024*10)/10 + " MB" : "No video file imported yet.";
+      let previewVideo = null;
+      const previewButton = makeButton("Preview imported clip", "secondary");
+      previewButton.disabled = !source.media_key;
+      previewButton.onclick = async () => {
+        previewButton.disabled = true; previewButton.textContent = "Loading preview...";
+        try {
+          const response = await fetch("/api/clips/import?script_id="+encodeURIComponent(scriptId)+"&source_id="+encodeURIComponent(source.id), { headers:{"x-auto-ai-admin-key":sourceAdminKey()} });
+          if (!response.ok) { const data=await response.json().catch(()=>({})); throw new Error(data.error || "Could not load clip preview."); }
+          const blob = await response.blob();
+          if (previewVideo?.dataset.objectUrl) URL.revokeObjectURL(previewVideo.dataset.objectUrl);
+          previewVideo = document.createElement("video"); previewVideo.controls=true; previewVideo.playsInline=true; previewVideo.preload="metadata"; previewVideo.style.width="100%"; previewVideo.style.maxHeight="420px";
+          previewVideo.dataset.objectUrl=URL.createObjectURL(blob); previewVideo.src=previewVideo.dataset.objectUrl;
+          card.insertBefore(previewVideo,reviewNote);
+          previewButton.textContent="Reload preview";
+        } catch(error) { status.textContent="Preview failed: "+error.message; previewButton.textContent="Preview imported clip"; }
+        finally { previewButton.disabled=false; }
+      };
+
+
+      const reviewNote = document.createElement("textarea"); reviewNote.rows = 2; reviewNote.maxLength = 1000; reviewNote.placeholder = "Your review note (required to approve/reject)";
+      reviewNote.value = source.review_note || "";
+      const saveReview = async decision => {
+        try {
+          await sourceApi("/api/sources", { method:"PATCH", body:JSON.stringify({ id:source.id, review_status:decision, review_note:reviewNote.value.trim() }) });
+          await loadClipSources();
+        } catch (error) { status.textContent = "Could not save review: " + error.message; }
+      };
+      const approve = makeButton("Approve after checking", "");
+      approve.onclick = () => {
+        if (!confirm("You are confirming that you have reviewed this clip and accept responsibility for deciding whether it may be used. This does not create permission or override copyright law. Continue?")) return;
+        saveReview("Approved");
+      };
+      const reject = makeButton("Reject this clip", "secondary"); reject.onclick = () => saveReview("Rejected");
+      const reset = makeButton("Return to pending", "secondary"); reset.onclick = () => saveReview("Pending review");
+      const remove = makeButton("Remove candidate", "danger");
+      remove.onclick = async () => { if (!confirm("Remove this candidate and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method:"DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove candidate: " + error.message; } };
+      const actions = document.createElement("div"); actions.className = "actions"; actions.append(approve,reject,reset,remove);
+      card.append(heading,detail,link,note,mediaLabel,importButton,mediaInfo,previewButton,reviewNote,actions); target.append(card);
+    });
+    return sources;
+  } catch (error) { status.textContent = "Could not load candidates: " + error.message; return []; }
+}
+async function findAndCollectClips() {
+  const scriptId=$("#sourceScript").value, script=savedScripts.find(item=>item.id===scriptId);
+  const status=$("#autoFindStatus"), results=$("#autoFindResults"), button=$("#autoFindClips");
+  if(!scriptId || !script) { status.textContent="Choose a saved script first."; return; }
+  if(!sourceAdminKey()) { status.textContent="Enter your Auto AI admin key in the Social Connections section."; return; }
+  const query=($("#sourceSearchQuery").value.trim() || script.topic || script.title || "").slice(0,100);
+  if(query.length<2) { status.textContent="Add a topic to search for."; return; }
+  button.disabled=true; results.replaceChildren(); status.textContent="Searching YouTube for relevant Creative Commons-labelled videos...";
+  try {
+    const response=await fetch("/api/youtube-footage?q="+encodeURIComponent(query));
+    const data=await youtubeApiData(response);
+    let saved=0;
+    for(const video of (data.videos||[])) {
+      try {
+        await sourceApi("/api/sources",{method:"POST",body:JSON.stringify({
+          script_id:scriptId,platform:"youtube",url:video.watchUrl,creator:video.channel,
+          title:video.title,rights_status:"Creative Commons",
+          rights_note:"YouTube search returned this item with the Creative Commons filter. Verify the individual video's licence and terms before reuse. Discovery result only; no media file downloaded."
+        })});
+        saved++;
+        const card=document.createElement("article"); card.className="account";
+        const title=document.createElement("strong"); title.textContent=video.title;
+        const creator=document.createElement("p"); creator.className="muted"; creator.textContent=video.channel+" · Creative Commons search filter · Pending your review";
+        const link=document.createElement("a"); link.href=video.watchUrl; link.target="_blank"; link.rel="noopener"; link.textContent="Open original video";
+        const preview=document.createElement("iframe"); preview.src=video.embedUrl; preview.title=video.title; preview.loading="lazy"; preview.allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"; preview.allowFullscreen=true; preview.style.width="100%"; preview.style.aspectRatio="16/9"; preview.style.border="0"; preview.style.borderRadius="12px";
+        card.append(title,creator,preview,link); results.append(card);
+      } catch(error) { /* keep collecting other results */ }
+    }
+    status.textContent=saved+" candidate(s) automatically saved for your review. These are previews/source records, not downloaded video files.";
+    await loadClipSources();
+  } catch(error) { status.textContent="Automatic search failed: "+error.message; }
+  finally { button.disabled=false; }
+}
+$("#autoFindClips").onclick=findAndCollectClips;
+$("#sourceScript").onchange = loadClipSources;
+document.querySelectorAll("[data-source-search]").forEach(button => { button.onclick = () => {
+  const query = $("#sourceSearchQuery").value.trim() || (savedScripts.find(item => item.id === $("#sourceScript").value)?.topic || "");
+  if (!query) { $("#sourceManagerStatus").textContent = "Enter a search topic first."; return; }
+  const q = encodeURIComponent(query), urls = { youtube:"https://www.youtube.com/results?search_query="+q, tiktok:"https://www.tiktok.com/search?q="+q, twitch:"https://www.twitch.tv/search?term="+q, google:"https://www.google.com/search?q="+q };
+  window.open(urls[button.dataset.sourceSearch], "_blank", "noopener");
+}; });
+// Manual source-entry controls were removed; candidates are collected through the automatic search and review flow.
+function formatSourceCredits(sources) {
+  if (!sources.length) return "";
+  return "\n\nVIDEO SOURCES & CREDITS\n" + sources.map((source,index) => (index+1)+". "+(source.title||source.platform.toUpperCase()+" clip")+(source.creator?" — "+source.creator:"")+"\n   "+source.url+"\n   Usage status recorded: "+source.rights_status+(source.rights_note?"\n   Licence / permission details: "+source.rights_note:"")).join("\n\n")+"\n\nCredit identifies the source; it does not itself grant permission to reuse copyrighted material.";
+}
+
+
+function fillYouTubeMetadata(scriptId) {
+  const item = savedScripts.find(entry => entry.id === scriptId);
+  const status = $("#youtubeMetadataStatus");
+  if (!item) {
+    status.textContent = "Choose a saved script to fill in its YouTube details.";
+    return;
+  }
+  const script = item.script || {};
+  const title = String(item.title || script.title || item.topic || "New video").replace(/\\s+/g, " ").trim().slice(0, 100);
+  const descriptionParts = [
+    String(script.caption || "").trim(),
+    String(script.hook || "").trim(),
+    String(script.voiceover || "").trim(),
+    "Topic: " + String(item.topic || "").trim(),
+    "More from this channel: " + String(item.niche || "").trim()
+  ].filter(Boolean);
+  const description = [...new Set(descriptionParts)].join("\\n\\n").slice(0, 5000);
+  const tags = [...new Set((String(item.niche || "") + "," + String(item.topic || "") + ",shorts").split(/[;,]/).map(tag => tag.trim().toLowerCase()).filter(Boolean))].slice(0, 15);
+  $("#youtubeVideoTitle").value = title;
+  $("#youtubeVideoDescription").value = description;
+  $("#youtubeVideoTags").value = tags.join(", ");
+  status.textContent = "YouTube title, description and tags filled from “" + item.title + "”. Review them before upload.";
+}
+$("#youtubeMetadataScript").onchange = event => fillYouTubeMetadata(event.target.value);
+$("#renderScript").addEventListener("change", event => {
+  if ($("#youtubeMetadataScript")) {
+    $("#youtubeMetadataScript").value = event.target.value;
+    fillYouTubeMetadata(event.target.value);
+  }
+});
+
+async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
+  const status = $("#youtubeUploadStatus");
+  const file = fileOverride || $("#youtubeVideoFile").files?.[0];
+  const accountId = $("#youtubeAccount").value;
+  const title = $("#youtubeVideoTitle").value.trim() || suggestedTitle;
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const privacy = $("#youtubePrivacy").value;
+  const scheduledLocal = $("#youtubePublishAt").value;
+  if (!key) throw new Error("Enter your Auto AI admin key first.");
+  if (!accountId) throw new Error("Choose the connected Auto AI account.");
+  if (!file) throw new Error("Choose a finished video file.");
+  if (!title) throw new Error("Enter a YouTube title.");
+  if (!$("#youtubePublishConsent").checked) throw new Error("Confirm the upload authorisation before continuing.");
+  if (file.size > 100 * 1024 * 1024) throw new Error("This first upload route supports files up to 100 MB. Larger files need direct cloud storage upload.");
+  if (scheduledLocal && privacy !== "private") throw new Error("Scheduled YouTube videos must be uploaded as Private.");
+  $("#youtubeVideoTitle").value = title;
+  let description = $("#youtubeVideoDescription").value;
+  const selectedSourceScript = $("#youtubeMetadataScript")?.value || $("#renderScript")?.value || "";
+  if (selectedSourceScript) {
+    const sourceData = await sourceApi("/api/sources?script_id=" + encodeURIComponent(selectedSourceScript));
+    const sources = sourceData.sources || [];
+    const unreviewed = sources.filter(source => source.review_status !== "Approved");
+    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) still need approval. Review them before uploading.");
+    const credits = formatSourceCredits(sources.filter(source => source.review_status === "Approved")).slice(-4800);
+    description = description.slice(0, Math.max(0, 5000 - credits.length)) + credits;
+    $("#youtubeVideoDescription").value = description;
+  }
+  const headers = {
+    "x-auto-ai-admin-key": key,
+    "x-youtube-account-id": accountId,
+    "x-youtube-title": title,
+    "x-youtube-description": description,
+    "x-youtube-tags": JSON.stringify($("#youtubeVideoTags").value.split(",").map(tag => tag.trim()).filter(Boolean)),
+    "x-youtube-privacy": privacy,
+    "Content-Type": file.type || "video/mp4"
+  };
+  if (scheduledLocal) headers["x-youtube-publish-at"] = new Date(scheduledLocal).toISOString();
+  status.textContent = "Uploading to YouTube. Keep Auto AI open until YouTube confirms the upload.";
+  const response = await fetch("/api/youtube/upload", { method: "POST", headers, body: file });
+  const data = await youtubeApiData(response);
+  status.replaceChildren();
+  const message = document.createElement("p");
+  message.textContent = data.status + ": " + data.title;
+  const link = document.createElement("a");
+  link.href = data.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Open YouTube video";
+  link.style.color = "#a9bcff";
+  status.append(message, link);
+  return data;
+}
+$("#youtubeUpload").onclick = async () => {
+  const button = $("#youtubeUpload");
+  button.disabled = true;
+  try { await uploadYouTubeVideo(); }
+  catch (error) { $("#youtubeUploadStatus").textContent = "Upload failed: " + error.message; }
+  finally { button.disabled = false; }
+};
+async function refreshModalConnections() {
+  const accountId = editingId;
+  const key = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const status = $("#modalConnectionStatus");
+  const details = $("#modalConnectionDetails");
+  if (!accountId) { status.textContent = "Save this account before connecting social profiles."; return; }
+  if (!key) { status.textContent = "Enter your Auto AI admin access key first."; $("#modalAdminKey").focus(); return; }
+  status.textContent = "Checking this account's social connections...";
+  details.replaceChildren();
+  const headers = { "x-auto-ai-admin-key": key, "Cache-Control": "no-cache" };
+  const loadPlatform = async platform => {
+    try {
+      const response = await fetch("/api/" + platform + "/status", { headers, cache: "no-store" });
+      const data = await youtubeApiData(response);
+      return { connection: (data.connections || []).find(item => item.account_id === accountId) || null, error: "" };
+    } catch (error) {
+      return { connection: null, error: error.message || (platform + " status unavailable") };
+    }
+  };
+  const [youtube, tiktok] = await Promise.all([loadPlatform("youtube"), loadPlatform("tiktok")]);
+  sessionStorage.setItem("autoAiAdminKey", key);
+  $("#youtubeAdminKey").value = key;
+  const addRow = (platform, result, label) => {
+    const row = document.createElement("div");
+    row.className = "connection-row";
+    const name = document.createElement("span");
+    const connection = result.connection;
+    name.textContent = label + ": " + (result.error
+      ? "Status unavailable — " + result.error
+      : connection
+        ? (platform === "youtube" ? (connection.channel_title || "YouTube channel") : "@" + (connection.display_name || "TikTok profile")) + " · Connected"
+        : "Not connected");
+    row.append(name);
+    if (connection) {
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.type = "button";
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect " + label + " from this Auto AI account?")) return;
+        disconnect.disabled = true;
+        try {
+          const response = await fetch("/api/" + platform + "/disconnect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+            body: JSON.stringify({ account_id: accountId })
+          });
+          await youtubeApiData(response);
+          await refreshModalConnections();
+        } catch (error) {
+          status.textContent = "Could not disconnect " + label + ": " + error.message;
+          disconnect.disabled = false;
+        }
+      };
+      row.append(disconnect);
+    }
+    details.append(row);
+  };
+  addRow("youtube", youtube, "YouTube");
+  addRow("tiktok", tiktok, "TikTok");
+  const problems = [youtube.error && "YouTube: " + youtube.error, tiktok.error && "TikTok: " + tiktok.error].filter(Boolean);
+  status.textContent = problems.length
+    ? "Connection checks completed with an issue: " + problems.join(" · ")
+    : "Connection status loaded for " + (accounts.find(item => item.id === accountId)?.name || "this account") + ".";
+}
+async function connectSocialFromModal(platform) {
+  const key = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = editingId;
+  const status = $("#modalConnectionStatus");
+  const button = platform === "youtube" ? $("#modalConnectYoutube") : $("#modalConnectTiktok");
+  const label = platform === "youtube" ? "YouTube / Google" : "TikTok";
+  if (!accountId) { status.textContent = "Save this account before connecting " + label + "."; return; }
+  if (!key) { status.textContent = "Enter your Auto AI admin access key."; $("#modalAdminKey").focus(); return; }
+  button.disabled = true;
+  status.textContent = "Starting " + label + " authorisation...";
+  try {
+    const response = await fetch("/api/" + platform + "/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+      body: JSON.stringify({ account_id: accountId }),
+      cache: "no-store",
+      credentials: "same-origin"
+    });
+    const data = await youtubeApiData(response);
+    if (!data.authorization_url || !data.authorization_url.startsWith("https://")) {
+      throw new Error("The server did not return a valid authorisation link.");
+    }
+    sessionStorage.setItem("autoAiAdminKey", key);
+    sessionStorage.setItem("autoAiPendingSocialAccount", accountId);
+    sessionStorage.setItem("autoAiPendingSocialPlatform", platform);
+    $("#youtubeAdminKey").value = key;
+    status.textContent = "Opening " + label + ". Complete approval to return to Auto AI.";
+    window.location.href = data.authorization_url;
+  } catch (error) {
+    status.textContent = label + " connection could not start: " + error.message;
+    button.disabled = false;
+  }
+}
+// Connection buttons are handled by the early delegated listener above.
+$("#modalRefreshConnections").onclick = refreshModalConnections;
+
+const socialCallbackParams = new URLSearchParams(location.search);
+const socialCallbackPlatform = socialCallbackParams.has("youtube") ? "youtube" : socialCallbackParams.has("tiktok") ? "tiktok" : "";
+const socialCallbackStatus = socialCallbackPlatform ? socialCallbackParams.get(socialCallbackPlatform) : "";
+const socialCallbackMessage = socialCallbackParams.get("message") || "";
+if (socialCallbackPlatform) {
+  history.replaceState({}, "", location.pathname);
+  const returnedAccountId = socialCallbackParams.get("account") || sessionStorage.getItem("autoAiPendingSocialAccount") || "";
+  if (returnedAccountId) sessionStorage.setItem("autoAiOpenAccountAfterOAuth", returnedAccountId);
+  sessionStorage.removeItem("autoAiPendingSocialAccount");
+  sessionStorage.removeItem("autoAiPendingSocialPlatform");
+  if (socialCallbackStatus === "error") {
+    sessionStorage.setItem("autoAiOAuthError", (socialCallbackPlatform === "youtube" ? "YouTube" : "TikTok") + " connection failed: " + (socialCallbackMessage || "Authorisation was not completed."));
+  } else {
+    sessionStorage.removeItem("autoAiOAuthError");
+    sessionStorage.setItem("autoAiOAuthSuccess", (socialCallbackPlatform === "youtube" ? "YouTube" : "TikTok") + " connected successfully.");
+  }
+}
+loadAccounts();
+loadScriptLibrary();
+loadProductionQueue();
+loadRenderedVideos();
+</script>
+<footer class="legal-footer" style="max-width:1100px;margin:40px auto 24px;padding:20px 22px;border-top:1px solid #2a3c5c;color:#aab6ce;text-align:center"><a href="/terms" style="color:#a9bcff">Terms of Service</a> · <a href="/privacy" style="color:#a9bcff">Privacy Policy</a> · <a href="mailto:aiauto.admin@gmail.com" style="color:#a9bcff">Contact Auto AI</a></footer>
+</body>
+</html>
