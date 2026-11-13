@@ -1,29 +1,48 @@
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
-  });
-}
+import { json, ensureYoutubeTables, decryptSecret } from "../_shared/youtube.js";
 
 function clean(value) {
-  return String(value || "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+  return String(value || "").replace(/[<>]/g, " ").replace(/\\s+/g, " ").trim().slice(0, 100);
 }
 
 export async function onRequestGet({ request, env }) {
   try {
-    if (!env.YOUTUBE_API_KEY) {
-      return json({
-        success: false,
-        error: "Real gaming footage search needs a YouTube Data API key. Add YOUTUBE_API_KEY as a Cloudflare Pages secret."
-      }, 503);
+    if (!env.DB) return json({ success: false, error: "YouTube connection database is unavailable." }, 503);
+    if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.TOKEN_ENCRYPTION_KEY) {
+      return json({ success: false, error: "The existing YouTube OAuth credentials are not fully configured." }, 503);
     }
+
     const url = new URL(request.url);
     const query = clean(url.searchParams.get("q"));
     if (query.length < 2) return json({ success: false, error: "Add a person, team, game or event to search." }, 400);
 
+    await ensureYoutubeTables(env.DB);
+    const connection = await env.DB.prepare(
+      "SELECT account_id, refresh_token_encrypted FROM youtube_connections ORDER BY connected_at DESC LIMIT 1"
+    ).first();
+
+    if (!connection) {
+      return json({ success: false, error: "Connect a YouTube channel in YouTube Setup before searching for footage." }, 409);
+    }
+
+    const refreshToken = await decryptSecret(connection.refresh_token_encrypted, env);
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: env.YOUTUBE_CLIENT_ID,
+        client_secret: env.YOUTUBE_CLIENT_SECRET,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token"
+      })
+    });
+    const tokens = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || !tokens.access_token) {
+      const detail = tokens.error_description || tokens.error || "Google could not refresh the saved YouTube connection.";
+      return json({ success: false, error: detail }, 502);
+    }
+
     const apiUrl = new URL("https://www.googleapis.com/youtube/v3/search");
     apiUrl.search = new URLSearchParams({
-      key: env.YOUTUBE_API_KEY,
       part: "snippet",
       type: "video",
       q: query,
@@ -35,12 +54,15 @@ export async function onRequestGet({ request, env }) {
       order: "relevance"
     }).toString();
 
-    const response = await fetch(apiUrl.toString());
+    const response = await fetch(apiUrl.toString(), {
+      headers: { Authorization: "Bearer " + tokens.access_token }
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message = data.error && data.error.message ? data.error.message : "YouTube search failed.";
       return json({ success: false, error: message }, response.status === 403 ? 502 : response.status);
     }
+
     const videos = (data.items || []).map(item => ({
       id: item.id.videoId,
       title: item.snippet.title,
