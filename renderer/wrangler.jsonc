@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "auto-ai-renderer",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-13",
+  "containers": [
+    {
+      "class_name": "VideoRenderer",
+      "image": "./Dockerfile",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "class_name": "VideoRenderer", "name": "VIDEO_RENDERER" }
+    ]
+  },
+  "migrations": [
+    { "new_sqlite_classes": ["VideoRenderer"], "tag": "v1" }
+  ]
+}
