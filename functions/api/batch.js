@@ -82,9 +82,11 @@ export async function onRequestPost({ request, env }) {
     const understoodTopic = String(body.understood_topic || topic).trim().slice(0, 500);
     const finalTopic = (clarification ? topic + " — " + clarification : understoodTopic).slice(0, 180);
     const count = Number(body.count);
+    const selectedNiche = String(body.niche || "").trim().slice(0, 160);
 
     if (!accountId) return json({ success: false, error: "Choose an account." }, 400);
     if (!finalTopic) return json({ success: false, error: "Enter a batch topic." }, 400);
+    if (!selectedNiche) return json({ success: false, error: "Choose a content niche." }, 400);
     if (!Number.isInteger(count) || count < 1 || count > 6) {
       return json({ success: false, error: "Batch size must be between 1 and 6." }, 400);
     }
@@ -113,7 +115,7 @@ export async function onRequestPost({ request, env }) {
       const allowedStyles = new Set(["curiosity", "facts", "story", "list", "gaming", "reddit_story", "motivation", "cinematic", "mystery"]);
       const requestedStyle = Array.isArray(body.styles) ? String(body.styles[i] || "") : "";
       const style = allowedStyles.has(requestedStyle) ? requestedStyle : (i % 2 === 0 ? "curiosity" : "facts");
-      const script = await generateScript(env, account.niche, scriptTopic, style);
+      const script = await generateScript(env, selectedNiche, scriptTopic, style);
       script.video_style = style;
       drafts.push({ id: crypto.randomUUID(), topic: scriptTopic, script });
     }
@@ -123,7 +125,7 @@ export async function onRequestPost({ request, env }) {
       await env.DB.prepare(`
         INSERT INTO scripts (id, title, niche, topic, content_json, status)
         VALUES (?, ?, ?, ?, ?, 'Draft')
-      `).bind(draft.id, draft.script.title, account.niche, draft.topic, JSON.stringify(draft.script)).run();
+      `) .bind(draft.id, draft.script.title, selectedNiche, draft.topic, JSON.stringify(draft.script)).run();
       created.push({ id: draft.id, title: draft.script.title, topic: draft.topic });
     }
 
