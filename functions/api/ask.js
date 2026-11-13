@@ -166,8 +166,8 @@ async function searchWeb(query) {
     const rawKey = String(item.url || "").split("#")[0];
     const key = rawKey.endsWith("/") ? rawKey.slice(0, -1) : rawKey;
     if (!(key.startsWith("https://") || key.startsWith("http://")) || seen.has(key)) return false;
-    if (!(key.startsWith("https://") || key.startsWith("http://")) || seen.has(key)) return false;
     seen.add(key);
+    return true;
   });
   const score = item => {
     const text = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
