@@ -1738,7 +1738,8 @@ async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
     const sources = sourceData.sources || [];
     const blocked = sources.filter(source => ["Needs permission", "Unknown"].includes(source.rights_status));
     if (blocked.length) throw new Error(blocked.length + " source(s) still need permission or rights verification. Update their rights status before publishing.");
-    description = (description + formatSourceCredits(sources)).slice(0, 5000);
+    const credits = formatSourceCredits(sources).slice(-4800);
+    description = description.slice(0, Math.max(0, 5000 - credits.length)) + credits;
     $("#youtubeVideoDescription").value = description;
   }
   const headers = {
