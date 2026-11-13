@@ -147,7 +147,7 @@ async function searchWeb(query) {
     return [...webResults, ...bingResults, ...wikiResults].map(item => ({ ...item, query: searchQuery }));
   }));
   const combined = batches.flat();
-  if (/nick\\s*mercs|nickmercs/i.test(query)) {
+  if (query.toLowerCase().includes("nickmercs") || query.toLowerCase().includes("nick mercs")) {
     const urls = [
       "https://liquipedia.net/fortnite/NICKMERCS",
       "https://liquipedia.net/fortnite/NICKMERCS/Results",
@@ -157,15 +157,15 @@ async function searchWeb(query) {
     const direct = await Promise.all(urls.map(url => fetchResearchPage(url, "NICKMERCS career tournament achievements")));
     combined.push(...direct.filter(Boolean));
   }
-  const subject = /nick\\s*mercs|nickmercs/i.test(query) ? /nick\\s*mercs|nickmercs/i : null;
+  const subject = query.toLowerCase().includes("nickmercs") || query.toLowerCase().includes("nick mercs") ? "nickmercs" : null;
   const seen = new Set();
   const relevant = combined.filter(item => {
     const title = String(item.title || "");
     const snippet = String(item.snippet || "");
     if (subject && !(title + " " + snippet).toLowerCase().replace(/\\s+/g, "").includes("nickmercs")) return false;
-    const key = String(item.url || "").split("#")[0].replace(/\\/$/, "");
-    if (!/^https?:\\/\\//i.test(key) || seen.has(key)) return false;
-    seen.add(key);
+    const rawKey = String(item.url || "").split("#")[0];
+    const key = rawKey.endsWith("/") ? rawKey.slice(0, -1) : rawKey;
+    if (!(key.startsWith("https://") || key.startsWith("http://")) || seen.has(key)) return false;
     return true;
   });
   const score = item => {
@@ -175,7 +175,7 @@ async function searchWeb(query) {
     if (/tournament|championship|placement|winner|won|results|prize|earnings|record/.test(text)) points += 4;
     if (/nickmercs|nick mercs/.test(text)) points += 4;
     if (/hosted|organised|organized|presented/.test(text)) points -= 2;
-    if (/modern warfare ii|video game\\)/.test(text)) points -= 3;
+    if (text.includes("modern warfare ii") || text.includes("video game)")) points -= 3;
     if (/wikipedia/.test(item.url)) points -= 1;
     return points;
   };
