@@ -137,6 +137,22 @@ label {display:grid;gap:6px;color:var(--muted)}
 </section>
 
 
+<section class="panel" style="margin-top:24px" id="youtubePanel">
+  <div class="row"><h2>YouTube Connection</h2><span class="tag">OAuth setup</span></div>
+  <p>Connect one YouTube channel to an Auto AI account. Publishing is not enabled yet; this securely saves the channel authorisation for the next stage.</p>
+  <label>Auto AI account
+    <select id="youtubeAccount"><option value="">Choose an account</option></select>
+  </label>
+  <label>Auto AI admin access key
+    <input id="youtubeAdminKey" type="password" autocomplete="current-password" placeholder="Enter the admin key configured in Cloudflare">
+  </label>
+  <div class="actions">
+    <button type="button" id="youtubeConnect">Connect YouTube</button>
+    <button type="button" class="secondary" id="youtubeRefresh">Refresh connection status</button>
+  </div>
+  <div id="youtubeStatus" class="notice" aria-live="polite">YouTube is not connected yet.</div>
+</section>
+
 <section class="panel" style="margin-top:24px">
   <div class="row"><h2>Script Studio</h2><span class="tag">AI-powered scripts</span></div>
   <p>Generate original short-form scripts with Cloudflare Workers AI. Scripts are AI first drafts and factual claims must be checked before publishing.</p>
@@ -356,6 +372,9 @@ async function loadAccounts() {
 
     render();
     showMessage("Your channels are loaded from Cloudflare.");
+    if (sessionStorage.getItem("autoAiAdminKey") && youtubeParams.get("youtube") !== "error") {
+      refreshYoutubeStatus();
+    }
   } catch (error) {
     showMessage("Could not load accounts: " + error.message, true);
     $("#accounts").innerHTML =
@@ -371,6 +390,13 @@ function render() {
     batchSelect.replaceChildren(new Option("Choose an active account", ""));
     accounts.filter(account => account.active).forEach(account => batchSelect.add(new Option(account.name + " — " + account.niche, account.id)));
     if (accounts.some(account => account.id === previous && account.active)) batchSelect.value = previous;
+  }
+  const youtubeSelect = $("#youtubeAccount");
+  if (youtubeSelect) {
+    const previousYoutube = youtubeSelect.value;
+    youtubeSelect.replaceChildren(new Option("Choose an account", ""));
+    accounts.forEach(account => youtubeSelect.add(new Option(account.name + " — " + account.niche, account.id)));
+    if (accounts.some(account => account.id === previousYoutube)) youtubeSelect.value = previousYoutube;
   }
 
   $("#active").textContent =
@@ -1224,6 +1250,71 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
+}
+
+
+function youtubeAdminHeaders() {
+  return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
+}
+async function refreshYoutubeStatus() {
+  const target = $("#youtubeStatus");
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  if (!key) { target.textContent = "Enter the admin access key to check connected channels."; return; }
+  try {
+    const response = await fetch("/api/youtube/status", { headers: { "x-auto-ai-admin-key": key } });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Could not load connection status.");
+    sessionStorage.setItem("autoAiAdminKey", key);
+    target.replaceChildren();
+    if (!data.connections.length) { target.textContent = "No YouTube channels connected yet."; return; }
+    data.connections.forEach(connection => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginTop = "8px";
+      const label = document.createElement("span");
+      label.textContent = (connection.account_name || "Auto AI account") + " → " + (connection.channel_title || "YouTube channel") + " (connected)";
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect this YouTube channel from Auto AI?")) return;
+        const result = await fetch("/api/youtube/disconnect", { method: "POST", headers: youtubeAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
+        const payload = await result.json();
+        if (!result.ok || !payload.success) { target.textContent = payload.error || "Disconnect failed."; return; }
+        refreshYoutubeStatus();
+      };
+      row.append(label, disconnect);
+      target.append(row);
+    });
+  } catch (error) { target.textContent = error.message; }
+}
+$("#youtubeConnect").onclick = async () => {
+  const key = $("#youtubeAdminKey").value.trim();
+  const accountId = $("#youtubeAccount").value;
+  const target = $("#youtubeStatus");
+  if (!key) { target.textContent = "Enter the admin access key first."; return; }
+  if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
+  const button = $("#youtubeConnect");
+  button.disabled = true;
+  target.textContent = "Starting secure Google authorisation...";
+  try {
+    const response = await fetch("/api/youtube/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+      body: JSON.stringify({ account_id: accountId })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Could not start YouTube connection.");
+    sessionStorage.setItem("autoAiAdminKey", key);
+    location.href = data.authorization_url;
+  } catch (error) { target.textContent = error.message; button.disabled = false; }
+};
+$("#youtubeRefresh").onclick = refreshYoutubeStatus;
+if ($("#youtubeAdminKey")) $("#youtubeAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
+const youtubeParams = new URLSearchParams(location.search);
+if (youtubeParams.has("youtube")) {
+  $("#youtubeStatus").textContent = youtubeParams.get("youtube") === "connected"
+    ? "Google authorised the YouTube channel. Checking saved connection..."
+    : "YouTube connection issue: " + (youtubeParams.get("message") || "Please try again.");
+  history.replaceState({}, "", location.pathname);
 }
 
 loadAccounts();

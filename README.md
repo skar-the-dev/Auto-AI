@@ -38,3 +38,18 @@ A cloud-hosted control centre for planning short-form content across multiple Ti
 - TikTok and YouTube integrations require official OAuth/API authorisation and compliance with platform review, quotas and publishing policies.
 - Free tiers have usage limits. Unlimited generation, rendering, storage or always-on processing is not promised.
 - Never commit passwords, API keys, OAuth secrets or access tokens.
+
+## YouTube OAuth integration (in progress)
+
+The feature branch `feature/youtube-oauth-integration` adds the first secure channel-connection flow. It is not active on the production site until reviewed, merged and deployed.
+
+Required Cloudflare Pages environment secrets:
+- `YOUTUBE_CLIENT_ID`: OAuth client ID from Google Cloud.
+- `YOUTUBE_CLIENT_SECRET`: OAuth client secret from Google Cloud.
+- `YOUTUBE_REDIRECT_URI`: `https://auto-ai-c8y.pages.dev/api/youtube/callback`.
+- `AUTO_AI_ADMIN_KEY`: private admin access key used by the dashboard to protect connection management.
+- `TOKEN_ENCRYPTION_KEY`: base64-encoded 32-byte key used to encrypt stored refresh tokens.
+
+Google OAuth authorised redirect URI must exactly match `YOUTUBE_REDIRECT_URI`. Add the app owner as a Google OAuth test user while the consent screen is in Testing.
+
+The connection flow stores the YouTube refresh token encrypted with AES-GCM and exposes only channel metadata to the dashboard. Video upload/publishing, token refresh jobs, revocation, and scheduled publishing are separate follow-on work and are not implemented by this initial connection flow.
