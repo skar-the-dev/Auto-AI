@@ -1170,82 +1170,54 @@ $("#batchForm").onsubmit = async event => {
   event.preventDefault();
   const button = $("#batchButton");
   const result = $("#batchResult");
-  const topic = $("#batchTopic").value.trim();
-  if (!topic) return;
-  const batchSettings = {
-    account_id: $("#batchAccount").value,
-    count: Number($("#batchCount").value),
-    niche,
-    count: Number($("#batchCount").value)
-  };
+  let topic = $("#batchTopic").value.trim();
+  const niche = $("#batchNiche").value === "__account__"
+    ? (accounts.find(account => account.id === $("#batchAccount").value)?.niche || "")
+    : $("#batchNiche").value;
+  if (!$("#batchAccount").value) { result.style.display = "block"; result.textContent = "Choose an active account first."; return; }
+  if (!niche) { result.style.display = "block"; result.textContent = "Choose a content niche first."; return; }
+  const batchSettings = { account_id: $("#batchAccount").value, count: Number($("#batchCount").value), niche };
   button.disabled = true;
-  button.textContent = "Understanding topic...";
+  button.textContent = topic ? "Understanding topic..." : "Finding a topic...";
   result.style.display = "block";
-  result.textContent = "Auto AI is checking what you mean before creating anything...";
+  result.textContent = topic ? "Auto AI is checking what you mean before creating anything..." : "Auto AI is finding a fresh topic in your selected niche...";
   try {
-    const clarification = await apiRequest("/api/batch", {
-      method: "POST",
-      body: JSON.stringify({ mode: "clarify", topic })
-    });
+    const clarification = topic
+      ? await apiRequest("/api/batch", { method: "POST", body: JSON.stringify({ mode: "clarify", topic }) })
+      : { understood_topic: "", needs_clarification: false, options: [] };
     let selectedMeaning = clarification.understood_topic || topic;
     if (clarification.needs_clarification) {
       result.replaceChildren();
-      const heading = document.createElement("h3");
-      heading.textContent = "Quick clarification";
-      const prompt = document.createElement("p");
-      prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?";
-      prompt.style.fontWeight = "700";
-      const options = document.createElement("div");
-      options.style.display = "grid";
-      options.style.gap = "9px";
+      const heading = document.createElement("h3"); heading.textContent = "Quick clarification";
+      const prompt = document.createElement("p"); prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?"; prompt.style.fontWeight = "700";
+      const options = document.createElement("div"); options.style.display = "grid"; options.style.gap = "9px";
       const chosen = new Promise(resolve => {
         clarification.options.forEach(option => {
-          const choice = document.createElement("button");
-          choice.type = "button";
-          choice.textContent = option;
-          choice.onclick = () => resolve(option);
-          options.append(choice);
+          const choice = document.createElement("button"); choice.type = "button"; choice.textContent = option; choice.onclick = () => resolve(option); options.append(choice);
         });
-        const customWrap = document.createElement("div");
-        customWrap.style.display = "grid";
-        customWrap.style.gap = "8px";
-        const custom = document.createElement("input");
-        custom.maxLength = 500;
-        custom.placeholder = "Or type what you mean...";
-        const customButton = document.createElement("button");
-        customButton.type = "button";
-        customButton.className = "secondary";
-        customButton.textContent = "Use my explanation";
-        customButton.onclick = () => {
-          if (custom.value.trim()) resolve(custom.value.trim());
-        };
-        customWrap.append(custom, customButton);
-        options.append(customWrap);
+        const customWrap = document.createElement("div"); customWrap.style.display = "grid"; customWrap.style.gap = "8px";
+        const custom = document.createElement("input"); custom.maxLength = 500; custom.placeholder = "Or type what you mean...";
+        const customButton = document.createElement("button"); customButton.type = "button"; customButton.className = "secondary"; customButton.textContent = "Use my explanation";
+        customButton.onclick = () => { if (custom.value.trim()) resolve(custom.value.trim()); };
+        customWrap.append(custom, customButton); options.append(customWrap);
       });
-      result.append(heading, prompt, options);
-      button.style.display = "none";
-      selectedMeaning = await chosen;
+      result.append(heading, prompt, options); button.style.display = "none"; selectedMeaning = await chosen;
     }
     button.textContent = "Creating drafts...";
-    result.replaceChildren();
-    result.textContent = "Creating your batch based on: " + selectedMeaning;
+    result.textContent = topic ? "Creating your batch..." : "Creating scripts for the topic Auto AI discovered...";
     const data = await apiRequest("/api/batch", {
       method: "POST",
-      body: JSON.stringify({
-        ...batchSettings,
-        topic,
-        understood_topic: clarification.understood_topic || topic,
-        clarification: clarification.needs_clarification ? selectedMeaning : ""
-      })
+      body: JSON.stringify({ ...batchSettings, topic, understood_topic: clarification.understood_topic || topic, clarification: clarification.needs_clarification ? selectedMeaning : "" })
     });
-    topic = data.topic || topic;\n    result.textContent = data.topic_discovery ? "Auto AI chose: " + topic + ". " + data.topic_discovery.reason + " " + data.message : data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
-    await loadScriptLibrary();
-    renderBatchDraftReview(data.created || []);
+    topic = data.topic || topic;
+    result.textContent = data.topic_discovery
+      ? "Auto AI chose: " + topic + ". " + data.topic_discovery.reason + " " + data.message
+      : data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
+    await loadScriptLibrary(); renderBatchDraftReview(data.created || []);
   } catch (error) {
     result.textContent = "Batch could not be created: " + error.message;
   } finally {
-    button.disabled = false;
-    button.textContent = "Generate scripts";
+    button.disabled = false; button.style.display = ""; button.textContent = "Generate scripts";
   }
 };
 
