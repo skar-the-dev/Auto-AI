@@ -132,7 +132,8 @@ async function fetchResearchPage(url, query) {
     const description = stripHtml(html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i)?.[1] || "");
     const body = stripHtml(html.replace(/<nav[\s\S]*?<\/nav>/gi, " ").replace(/<footer[\s\S]*?<\/footer>/gi, " "));
     if (!body || !/nick\s*mercs|nickmercs/i.test(title + " " + description + " " + body.slice(0, 16000))) return null;
-    return { title, url, snippet: (description + " " + body).slice(0, 6500), query, full_text: true };
+    const usefulText = (description + " " + body).replace(/\\s+/g, " ").trim();
+    return { title, url, snippet: usefulText.slice(0, 10000), query, full_text: true };
   } catch { return null; }
 }
 
@@ -149,12 +150,14 @@ async function searchWeb(query) {
   const combined = batches.flat();
   if (query.toLowerCase().includes("nickmercs") || query.toLowerCase().includes("nick mercs")) {
     const urls = [
-      "https://liquipedia.net/fortnite/NICKMERCS",
       "https://liquipedia.net/fortnite/NICKMERCS/Results",
+      "https://liquipedia.net/fortnite/NICKMERCS",
+      "https://liquipedia.net/callofduty/NICKMERCS/Results",
       "https://liquipedia.net/callofduty/NICKMERCS",
-      "https://liquipedia.net/apexlegends/NICKMERCS"
+      "https://fortnite-esports.fandom.com/wiki/NICKMERCS/Tournament_Results",
+      "https://cod-esports.fandom.com/wiki/NICKMERCS/Tournament_Results"
     ];
-    const direct = await Promise.all(urls.map(url => fetchResearchPage(url, "NICKMERCS career tournament achievements")));
+    const direct = await Promise.all(urls.map(url => fetchResearchPage(url, "NICKMERCS verified tournament results and placements")));
     combined.push(...direct.filter(Boolean));
   }
   const subject = query.toLowerCase().includes("nickmercs") || query.toLowerCase().includes("nick mercs") ? "nickmercs" : null;
