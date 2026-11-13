@@ -25,6 +25,10 @@ async function ensureTable(db) {
       review_status TEXT NOT NULL DEFAULT 'Pending review',
       review_note TEXT,
       reviewed_at TEXT,
+      media_key TEXT,
+      media_filename TEXT,
+      media_type TEXT,
+      media_size INTEGER,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
@@ -32,7 +36,11 @@ async function ensureTable(db) {
   for (const statement of [
     "ALTER TABLE clip_sources ADD COLUMN review_status TEXT NOT NULL DEFAULT 'Pending review'",
     "ALTER TABLE clip_sources ADD COLUMN review_note TEXT",
-    "ALTER TABLE clip_sources ADD COLUMN reviewed_at TEXT"
+    "ALTER TABLE clip_sources ADD COLUMN reviewed_at TEXT",
+    "ALTER TABLE clip_sources ADD COLUMN media_key TEXT",
+    "ALTER TABLE clip_sources ADD COLUMN media_filename TEXT",
+    "ALTER TABLE clip_sources ADD COLUMN media_type TEXT",
+    "ALTER TABLE clip_sources ADD COLUMN media_size INTEGER"
   ]) {
     try { await db.prepare(statement).run(); } catch (error) {
       if (!/duplicate column/i.test(error.message || "")) throw error;
