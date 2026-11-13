@@ -308,6 +308,32 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   <div id="tiktokStatus" class="notice" aria-live="polite">TikTok is not connected yet. Enter your Auto AI admin key in the YouTube Connection section first.</div>
 </section>
 
+<section class="panel" id="sourceManager" style="margin-top:18px">
+  <div class="row"><h2>Source & Copyright Manager</h2><span class="tag">Multi-platform</span></div>
+  <p>Search for relevant clips across YouTube, TikTok, Twitch and Google. Save original links, creator details and usage-rights evidence against a script. Credits are added to the YouTube description automatically. A credit is not permission to reuse footage.</p>
+  <label>Saved script<select id="sourceScript"><option value="">Choose a saved script</option></select></label>
+  <label>Search topic<input id="sourceSearchQuery" placeholder="Use the script topic or enter a search phrase"></label>
+  <div class="actions">
+    <button type="button" class="secondary" data-source-search="youtube">Search YouTube</button>
+    <button type="button" class="secondary" data-source-search="tiktok">Search TikTok</button>
+    <button type="button" class="secondary" data-source-search="twitch">Search Twitch</button>
+    <button type="button" class="secondary" data-source-search="google">Search Google</button>
+  </div>
+  <p class="muted">Search opens the platform's own results. Auto AI does not bypass logins, download restrictions or platform permissions.</p>
+  <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:12px">
+    <h3>Add a source you found</h3>
+    <label>Platform<select id="sourcePlatform"><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="twitch">Twitch</option><option value="google">Google / website</option><option value="other">Other</option></select></label>
+    <label>Original clip or page URL<input id="sourceUrl" type="url" placeholder="https://..." required></label>
+    <label>Creator / channel / publisher<input id="sourceCreator" maxlength="160" placeholder="Creator or channel name"></label>
+    <label>Clip / page title<input id="sourceTitle" maxlength="240" placeholder="What is this source?"></label>
+    <label>Usage rights<select id="sourceRights"><option>Needs permission</option><option>Unknown</option><option>Permission confirmed</option><option>Creative Commons</option><option>Public domain</option></select></label>
+    <label>Permission or licence details<textarea id="sourceRightsNote" rows="2" maxlength="1000" placeholder="Licence URL, permission reference, attribution wording or restrictions"></textarea></label>
+    <button type="button" id="saveClipSource">Save source & credit</button>
+  </div>
+  <div id="sourceManagerStatus" class="notice" aria-live="polite">Choose a saved script to manage its sources.</div>
+  <div id="sourceRecords" class="grid"></div>
+</section>
+
 <section class="panel batch-studio" style="margin-top:24px">
   <div class="batch-heading">
     <div>
@@ -877,6 +903,13 @@ async function loadScriptLibrary() {
       renderSelect.replaceChildren(new Option("Choose a saved script", ""));
       savedScripts.forEach(item => renderSelect.add(new Option(item.title, item.id)));
       if (savedScripts.some(item => item.id === previous)) renderSelect.value = previous;
+    }
+    const sourceSelect = $("#sourceScript");
+    if (sourceSelect) {
+      const previousSource = sourceSelect.value;
+      sourceSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => sourceSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previousSource)) sourceSelect.value = previousSource;
     }
     $("#scriptCount").textContent = savedScripts.length + " saved";
     container.replaceChildren();
@@ -1635,6 +1668,53 @@ async function refreshYoutubeUploadHistory() {
   } catch (error) { target.textContent = "Could not load upload history: " + error.message; }
 }
 $("#youtubeHistoryRefresh").onclick = refreshYoutubeUploadHistory;
+function sourceAdminKey() { return $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || ""; }
+function sourceApi(url, options = {}) { return apiRequest(url, { ...options, headers: { "x-auto-ai-admin-key": sourceAdminKey(), ...(options.headers || {}) } }); }
+async function loadClipSources() {
+  const scriptId = $("#sourceScript").value, target = $("#sourceRecords"), status = $("#sourceManagerStatus");
+  target.replaceChildren();
+  if (!scriptId) { status.textContent = "Choose a saved script to manage its sources."; return []; }
+  if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above to load source records."; return []; }
+  try {
+    const data = await sourceApi("/api/sources?script_id=" + encodeURIComponent(scriptId)), sources = data.sources || [];
+    status.textContent = sources.length + " source(s) saved. Review each rights status before using its footage.";
+    if (!sources.length) target.textContent = "No sources saved for this script yet.";
+    sources.forEach(source => {
+      const card = document.createElement("article"); card.className = "account";
+      const heading = document.createElement("strong"); heading.textContent = source.title || source.creator || source.platform.toUpperCase() + " source";
+      const detail = document.createElement("p"); detail.className = "muted"; detail.textContent = source.platform.toUpperCase() + " · " + (source.creator || "Creator not recorded") + " · " + source.rights_status;
+      const link = document.createElement("a"); link.href = source.url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Open original source";
+      const note = document.createElement("p"); note.className = "muted"; note.textContent = source.rights_note || "No licence or permission evidence recorded.";
+      const remove = makeButton("Remove source", "danger");
+      remove.onclick = async () => { if (!confirm("Remove this source and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method: "DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove source: " + error.message; } };
+      card.append(heading, detail, link, note, remove); target.append(card);
+    });
+    return sources;
+  } catch (error) { status.textContent = "Could not load sources: " + error.message; return []; }
+}
+$("#sourceScript").onchange = loadClipSources;
+document.querySelectorAll("[data-source-search]").forEach(button => { button.onclick = () => {
+  const query = $("#sourceSearchQuery").value.trim() || (savedScripts.find(item => item.id === $("#sourceScript").value)?.topic || "");
+  if (!query) { $("#sourceManagerStatus").textContent = "Enter a search topic first."; return; }
+  const q = encodeURIComponent(query), urls = { youtube:"https://www.youtube.com/results?search_query="+q, tiktok:"https://www.tiktok.com/search?q="+q, twitch:"https://www.twitch.tv/search?term="+q, google:"https://www.google.com/search?q="+q };
+  window.open(urls[button.dataset.sourceSearch], "_blank", "noopener");
+}; });
+$("#saveClipSource").onclick = async () => {
+  const scriptId = $("#sourceScript").value, status = $("#sourceManagerStatus"), button = $("#saveClipSource");
+  if (!scriptId) { status.textContent = "Choose a saved script first."; return; }
+  if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above first."; return; }
+  button.disabled = true;
+  try {
+    await sourceApi("/api/sources", { method:"POST", body:JSON.stringify({ script_id:scriptId, platform:$("#sourcePlatform").value, url:$("#sourceUrl").value.trim(), creator:$("#sourceCreator").value.trim(), title:$("#sourceTitle").value.trim(), rights_status:$("#sourceRights").value, rights_note:$("#sourceRightsNote").value.trim() }) });
+    $("#sourceUrl").value=""; $("#sourceCreator").value=""; $("#sourceTitle").value=""; $("#sourceRightsNote").value="";
+    await loadClipSources();
+  } catch(error) { status.textContent = "Could not save source: " + error.message; } finally { button.disabled=false; }
+};
+function formatSourceCredits(sources) {
+  if (!sources.length) return "";
+  return "\n\nVIDEO SOURCES & CREDITS\n" + sources.map((source,index) => (index+1)+". "+(source.title||source.platform.toUpperCase()+" clip")+(source.creator?" — "+source.creator:"")+"\n   "+source.url+"\n   Usage status recorded: "+source.rights_status+(source.rights_note?"\n   Licence / permission details: "+source.rights_note:"")).join("\n\n")+"\n\nCredit identifies the source; it does not itself grant permission to reuse copyrighted material.";
+}
+
 async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   const status = $("#youtubeUploadStatus");
   const file = fileOverride || $("#youtubeVideoFile").files?.[0];
@@ -1651,11 +1731,21 @@ async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   if (file.size > 100 * 1024 * 1024) throw new Error("This first upload route supports files up to 100 MB. Larger files need direct cloud storage upload.");
   if (scheduledLocal && privacy !== "private") throw new Error("Scheduled YouTube videos must be uploaded as Private.");
   $("#youtubeVideoTitle").value = title;
+  let description = $("#youtubeVideoDescription").value;
+  const selectedSourceScript = $("#sourceScript")?.value || "";
+  if (selectedSourceScript) {
+    const sourceData = await sourceApi("/api/sources?script_id=" + encodeURIComponent(selectedSourceScript));
+    const sources = sourceData.sources || [];
+    const blocked = sources.filter(source => ["Needs permission", "Unknown"].includes(source.rights_status));
+    if (blocked.length) throw new Error(blocked.length + " source(s) still need permission or rights verification. Update their rights status before publishing.");
+    description = (description + formatSourceCredits(sources)).slice(0, 5000);
+    $("#youtubeVideoDescription").value = description;
+  }
   const headers = {
     "x-auto-ai-admin-key": key,
     "x-youtube-account-id": accountId,
     "x-youtube-title": title,
-    "x-youtube-description": $("#youtubeVideoDescription").value,
+    "x-youtube-description": description,
     "x-youtube-tags": JSON.stringify($("#youtubeVideoTags").value.split(",").map(tag => tag.trim()).filter(Boolean)),
     "x-youtube-privacy": privacy,
     "Content-Type": file.type || "video/mp4"
