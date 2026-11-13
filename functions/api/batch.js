@@ -54,7 +54,8 @@ async function discoverNicheTopic(niche, env, recentTopics = []) {
   if (topic.length < 8) throw new Error("Auto AI could not find a suitable topic in this niche. Please try again.");
   return { topic, reason: String(parsed.topic_reason || "Selected automatically for your niche.").slice(0, 240) };
 }
-\nasync function understandBatchTopic(topic, env) {
+
+async function understandBatchTopic(topic, env) {
   const prompt = [
     'Read the whole topic and identify its likely meanings. Do not create content or search yet.',
     'TOPIC: ' + topic,
