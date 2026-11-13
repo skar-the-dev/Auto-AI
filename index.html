@@ -1815,17 +1815,7 @@ document.querySelectorAll("[data-source-search]").forEach(button => { button.onc
   const q = encodeURIComponent(query), urls = { youtube:"https://www.youtube.com/results?search_query="+q, tiktok:"https://www.tiktok.com/search?q="+q, twitch:"https://www.twitch.tv/search?term="+q, google:"https://www.google.com/search?q="+q };
   window.open(urls[button.dataset.sourceSearch], "_blank", "noopener");
 }; });
-$("#saveClipSource").onclick = async () => {
-  const scriptId = $("#sourceScript").value, status = $("#sourceManagerStatus"), button = $("#saveClipSource");
-  if (!scriptId) { status.textContent = "Choose a saved script first."; return; }
-  if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above first."; return; }
-  button.disabled = true;
-  try {
-    await sourceApi("/api/sources", { method:"POST", body:JSON.stringify({ script_id:scriptId, platform:$("#sourcePlatform").value, url:$("#sourceUrl").value.trim(), creator:$("#sourceCreator").value.trim(), title:$("#sourceTitle").value.trim(), rights_status:$("#sourceRights").value, rights_note:$("#sourceRightsNote").value.trim() }) });
-    $("#sourceUrl").value=""; $("#sourceCreator").value=""; $("#sourceTitle").value=""; $("#sourceRightsNote").value="";
-    await loadClipSources();
-  } catch(error) { status.textContent = "Could not save candidate: " + error.message; } finally { button.disabled=false; }
-};
+// Manual source-entry controls were removed; candidates are collected through the automatic search and review flow.
 function formatSourceCredits(sources) {
   if (!sources.length) return "";
   return "\n\nVIDEO SOURCES & CREDITS\n" + sources.map((source,index) => (index+1)+". "+(source.title||source.platform.toUpperCase()+" clip")+(source.creator?" — "+source.creator:"")+"\n   "+source.url+"\n   Usage status recorded: "+source.rights_status+(source.rights_note?"\n   Licence / permission details: "+source.rights_note:"")).join("\n\n")+"\n\nCredit identifies the source; it does not itself grant permission to reuse copyrighted material.";
