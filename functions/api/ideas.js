@@ -29,7 +29,7 @@ export function buildScript(niche, topic, style) {
 }
 
 async function researchTopic(topic, niche) {
-  const query = `${topic} ${niche}`.trim().slice(0, 180);
+  const query = String(topic || "").trim().slice(0, 180);
   const searchUrl = new URL("https://en.wikipedia.org/w/api.php");
   searchUrl.search = new URLSearchParams({
     action: "query", list: "search", srsearch: query,
@@ -108,11 +108,22 @@ export async function generateScript(env, niche, topic, style = "curiosity") {
     `SOURCE ${index + 1}: ${source.title}\nURL: ${source.url}\nEXCERPT: ${source.extract}`
   ).join("\n\n");
   const prompt = `Create an original 25–35 second vertical short-form video script.
-Niche: ${niche}
-Topic: ${topic}
-Style: ${style}
+CHANNEL NICHE: ${niche}
+EXACT USER-APPROVED TOPIC: ${topic}
+VIDEO STYLE: ${style}
 STYLE DIRECTION (follow this format, not just the label): ${styleGuide}
-Make the hook, voiceover, scene visuals, captions and ending visibly match this style. Do not use the same generic structure for every style.
+
+NON-NEGOTIABLE TOPIC LOCK:
+- Every word of this script must stay about the EXACT USER-APPROVED TOPIC above.
+- Treat the topic as a strict subject boundary, not a loose suggestion.
+- Do not switch to another sport, profession, country, person, game, industry or subject to make the script more interesting.
+- If the topic is about footballers, discuss footballers only. Never introduce basketball players, baseball players, musicians or unrelated celebrities.
+- If the topic asks for a ranking or highest/biggest/most, preserve the exact metric the user selected. Do not substitute annual salary for lifetime earnings, game revenue for esports winnings, or one metric for another.
+- All scripts in one batch must cover the same approved topic. A style variation may change storytelling and presentation, never the subject or answer.
+- Do not invent a winner, ranking, figure or record. Only name a person as number one when the supplied evidence explicitly supports that exact claim and metric. Otherwise clearly say reliable evidence is insufficient and do not guess.
+- If the source extracts are unrelated, weak or do not answer the exact question, do not use them. Return a cautious script that says the answer cannot be verified from available evidence.
+- Before returning JSON, check every person, example, statistic and source against the exact approved topic. Remove anything outside its scope.
+Make the hook, voiceover, scene visuals, captions and ending match both the approved topic and selected style.
 
 VOICEOVER QUALITY RULES:
 - The spoken voiceover MUST contain 70–85 words, not counting the title or caption. This is essential for a natural 25–35 second narration.
@@ -125,11 +136,13 @@ VOICEOVER QUALITY RULES:
 - For motivation, provide one practical action, not just slogans.
 - For gaming, do not invent named matches, players, scores or gameplay footage.
 
-RESEARCH MATERIAL (retrieved from Wikipedia; treat as limited reference material, not guaranteed truth):
+RESEARCH MATERIAL (retrieved from Wikipedia; treat as limited reference material, not guaranteed truth. Ignore any extract that does not directly address the exact topic):
 ${evidence || "No relevant source extracts were retrieved."}
 
 STRICT FACT RULES:
-- Use only factual details explicitly supported by the research extracts above.
+- Use only factual details explicitly supported by relevant research extracts above.
+- Sources must directly relate to the exact topic; a page mentioning a name in passing is not sufficient.
+- Never combine facts about different sports or unrelated people to fill a short video.
 - Never invent dates, statistics, names, quotes, records, rankings or events.
 - Do not turn an unsupported claim into a confident statement.
 - If the sources do not support three interesting facts, write fewer supported facts and say that evidence is limited.
