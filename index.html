@@ -817,7 +817,19 @@ $("#askForm").onsubmit = async event => {
     answer.style.whiteSpace = "pre-wrap";
     answer.style.lineHeight = "1.65";
     answer.style.marginTop = "12px";
-    answer.textContent = data.answer;
+    // Defensively unwrap a model response that was accidentally returned as JSON text.
+    let displayAnswer = String(data.answer || "");
+    try {
+      const trimmed = displayAnswer.trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed.answer === "string") displayAnswer = parsed.answer;
+        else if (typeof parsed.response === "string") displayAnswer = parsed.response;
+      }
+    } catch {}
+    displayAnswer = displayAnswer.replace(/\\\\n/g, "\\n").replace(/\\r/g, "");
+    displayAnswer = displayAnswer.replace(/\\*\\*(.*?)\\*\\*/g, "$1");
+    answer.textContent = displayAnswer;
     const note = document.createElement("p");
     note.className = "muted";
     note.textContent = data.coverage_note;
