@@ -22,9 +22,22 @@ async function ensureTable(db) {
       title TEXT,
       rights_status TEXT NOT NULL DEFAULT 'Needs permission',
       rights_note TEXT,
+      review_status TEXT NOT NULL DEFAULT 'Pending review',
+      review_note TEXT,
+      reviewed_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+  // Upgrade databases created before the manual clip-review workflow.
+  for (const statement of [
+    "ALTER TABLE clip_sources ADD COLUMN review_status TEXT NOT NULL DEFAULT 'Pending review'",
+    "ALTER TABLE clip_sources ADD COLUMN review_note TEXT",
+    "ALTER TABLE clip_sources ADD COLUMN reviewed_at TEXT"
+  ]) {
+    try { await db.prepare(statement).run(); } catch (error) {
+      if (!/duplicate column/i.test(error.message || "")) throw error;
+    }
+  }
 }
 
 export async function onRequest({ request, env }) {
@@ -63,6 +76,24 @@ export async function onRequest({ request, env }) {
       await env.DB.prepare("INSERT INTO clip_sources (id, script_id, platform, url, creator, title, rights_status, rights_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(id, scriptId, platform, parsed.toString(), creator, title, rightsStatus, rightsNote).run();
       return json({ success: true, id, message: "Source saved. Its credit will be added to the selected video's description." }, 201);
+    }
+
+    if (request.method === "PATCH") {
+      const body = await request.json();
+      const id = String(body.id || "").trim();
+      const reviewStatus = String(body.review_status || "").trim();
+      const reviewNote = String(body.review_note || "").trim().slice(0, 1000);
+      if (!id || !["Approved", "Rejected", "Pending review"].includes(reviewStatus)) {
+        return json({ success: false, error: "Choose a source and a valid review decision." }, 400);
+      }
+      if (reviewStatus !== "Pending review" && reviewNote.length < 8) {
+        return json({ success: false, error: "Add a short note explaining your review decision (at least 8 characters)." }, 400);
+      }
+      const result = await env.DB.prepare(
+        "UPDATE clip_sources SET review_status = ?, review_note = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).bind(reviewStatus, reviewNote, id).run();
+      if (!result.meta?.changes) return json({ success: false, error: "Source not found." }, 404);
+      return json({ success: true, review_status: reviewStatus });
     }
 
     if (request.method === "DELETE") {
