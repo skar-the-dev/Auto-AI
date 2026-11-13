@@ -63,6 +63,26 @@ async function searchDuckDuckGo(query) {
   }
   return [];
 }
+ 
+async function searchBingRss(query) {
+  try {
+    const endpoint = "https://www.bing.com/search?format=rss&q=" + encodeURIComponent(query);
+    const response = await fetch(endpoint, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AutoAIResearch/1.0)", "Accept": "application/rss+xml,application/xml,text/xml" },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) return [];
+    const xml = await response.text();
+    const items = xml.match(/<item>[\\s\\S]*?<\\/item>/gi) || [];
+    return items.slice(0, 8).map(item => {
+      const get = tag => stripHtml(item.match(new RegExp("<" + tag + "(?:\\s[^>]*)?>([\\s\\S]*?)</" + tag + ">", "i"))?.[1] || "");
+      const title = get("title");
+      const link = get("link");
+      const snippet = get("description");
+      return { title, url: link, snippet: snippet.slice(0, 1000), query };
+    }).filter(item => item.title && /^https?:\\/\\//i.test(item.url));
+  } catch { return []; }
+}
 
 async function searchWikipedia(query) {
   const endpoint = new URL("https://en.wikipedia.org/w/api.php");
@@ -117,17 +137,15 @@ async function fetchResearchPage(url, query) {
 async function searchWeb(query) {
   const queries = buildSearchQueries(query);
   const batches = await Promise.all(queries.map(async searchQuery => {
-    const [webResults, wikiResults] = await Promise.all([
+    const [webResults, bingResults, wikiResults] = await Promise.all([
       searchDuckDuckGo(searchQuery).catch(() => []),
+      searchBingRss(searchQuery).catch(() => []),
       searchWikipedia(searchQuery).catch(() => [])
     ]);
-    const filtered = [...webResults, ...wikiResults].filter(item =>
-      /nick\s*mercs|nickmercs/i.test(item.title + " " + item.url)
-    );
-    return filtered.map(item => ({ ...item, query: searchQuery }));
+    return [...webResults, ...bingResults, ...wikiResults].map(item => ({ ...item, query: searchQuery }));
   }));
   const combined = batches.flat();
-  if (/nick\s*mercs|nickmercs/i.test(query)) {
+  if (/nick\\s*mercs|nickmercs/i.test(query)) {
     const urls = [
       "https://liquipedia.net/fortnite/NICKMERCS",
       "https://liquipedia.net/fortnite/NICKMERCS/Results",
@@ -137,18 +155,29 @@ async function searchWeb(query) {
     const direct = await Promise.all(urls.map(url => fetchResearchPage(url, "NICKMERCS career tournament achievements")));
     combined.push(...direct.filter(Boolean));
   }
+  const subject = /nick\\s*mercs|nickmercs/i.test(query) ? /nick\\s*mercs|nickmercs/i : null;
   const seen = new Set();
-  const unique = combined.filter(item => {
-    try {
-      const url = new URL(item.url);
-      url.hash = "";
-      const key = url.toString().replace(/\/$/, "");
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    } catch { return false; }
+  const relevant = combined.filter(item => {
+    const title = String(item.title || "");
+    const snippet = String(item.snippet || "");
+    if (subject && !subject.test(title + " " + snippet)) return false;
+    const key = String(item.url || "").split("#")[0].replace(/\\/$/, "");
+    if (!/^https?:\\/\\//i.test(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
-  return unique.slice(0, 12);
+  const score = item => {
+    const text = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
+    let points = 0;
+    if (/liquipedia|esports earnings|escharts|twitchtracker|tracker network|dot esports|dexerto/.test(text)) points += 5;
+    if (/tournament|championship|placement|winner|won|results|prize|earnings|record/.test(text)) points += 4;
+    if (/nickmercs|nick mercs/.test(text)) points += 4;
+    if (/hosted|organised|organized|presented/.test(text)) points -= 2;
+    if (/modern warfare ii|video game\\)/.test(text)) points -= 3;
+    if (/wikipedia/.test(item.url)) points -= 1;
+    return points;
+  };
+  return relevant.sort((a, b) => score(b) - score(a)).slice(0, 12);
 }
 
 function parseAnswer(result) {
