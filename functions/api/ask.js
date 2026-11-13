@@ -162,7 +162,7 @@ async function searchWeb(query) {
   const relevant = combined.filter(item => {
     const title = String(item.title || "");
     const snippet = String(item.snippet || "");
-    if (subject && !subject.test(title + " " + snippet)) return false;
+    if (subject && !(title + " " + snippet).toLowerCase().replace(/\\s+/g, "").includes("nickmercs")) return false;
     const key = String(item.url || "").split("#")[0].replace(/\\/$/, "");
     if (!/^https?:\\/\\//i.test(key) || seen.has(key)) return false;
     seen.add(key);
