@@ -1258,16 +1258,14 @@ $("#renderVideo").onclick = async () => {
     const audioBlob = await voiceResponse.blob();
     if (!audioBlob.size || !audioBlob.type.includes("audio")) throw new Error("The voice service did not return an audio file.");
 
-    audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio();
-    audio.src = audioUrl;
-    audio.preload = "auto";
-    audio.playsInline = true;
-    await new Promise((resolve, reject) => {
-      audio.onloadedmetadata = resolve;
-      audio.onerror = () => reject(new Error("The generated narration could not be loaded for video assembly."));
-    });
-    const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : Math.max(8, narration.length / 14);
+    const audioBytes = await audioBlob.arrayBuffer();
+    let audioBuffer;
+    try {
+      audioBuffer = await audioContext.decodeAudioData(audioBytes.slice(0));
+    } catch {
+      throw new Error("Safari could not decode the generated narration audio. Please try generating the voiceover again.");
+    }
+    const audioDuration = audioBuffer.duration || Math.max(8, narration.length / 14);
     const totalMs = Math.max(5000, audioDuration * 1000);
     const sceneWeights = lines.map(line => Math.max(1, line.split(/\s+/).length));
     const totalWeight = sceneWeights.reduce((sum, value) => sum + value, 0);
@@ -1278,9 +1276,10 @@ $("#renderVideo").onclick = async () => {
       sceneEnds.push(totalMs * accumulated / totalWeight);
     }
 
-    const source = audioContext.createMediaElementSource(audio);
+    const source = audioContext.createBufferSource();
     const narrationGain = audioContext.createGain();
     const destination = audioContext.createMediaStreamDestination();
+    source.buffer = audioBuffer;
     narrationGain.gain.value = 1;
     source.connect(narrationGain);
     narrationGain.connect(destination);
@@ -1301,7 +1300,7 @@ $("#renderVideo").onclick = async () => {
     status.textContent = "Recording animated scenes and AI narration together. Keep this page open until it finishes.";
     const start = performance.now();
     recorder.start(250);
-    await audio.play();
+    source.start(0);
 
     await new Promise(resolve => {
       const draw = now => {
@@ -1358,7 +1357,7 @@ $("#renderVideo").onclick = async () => {
       requestAnimationFrame(draw);
     });
 
-    if (!audio.paused) audio.pause();
+    try { source.stop(); } catch {}
     await new Promise(resolve => setTimeout(resolve, 350));
     recorder.stop();
     await finished;
