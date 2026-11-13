@@ -286,10 +286,17 @@ RULES:
 - For current rankings or news, state the date of the evidence. If extracts do not establish current status, say so.
 - Never invent names, dates, scores, prizes, quotes or achievements.
 - Distinguish events the person HOSTED or ORGANIZED from events they PERSONALLY WON or placed in. Hosting a tournament is not a tournament victory.
+- CRITICAL TABLE RULE: when a source contains a tournament-results table, read its column headings before interpreting any numbers. In tables with columns such as Date, Team Size, Pl, PR Points, Region, Platform, Event and Team Roster, ONLY the value under "Pl" is the finishing placement. "PR Points", prize money, event week numbers, dates and team size are NOT placements. Never turn PR points into a finishing position.
+- Copy placements exactly as shown in the source. If the source says 95, report 95th, not 1st. Never infer a win from points, a roster listing, a team name or an event title.
+- For each claimed result, require a specific event row with a visible placement value and the subject's name in the team roster. If either is missing or ambiguous, do not claim the result.
+- Do not repeat the same event or duplicate rows. Group repeated weekly placements into a concise summary where appropriate.
+- Distinguish solo results from duo/squad/team results. For team results, explicitly say it was a team finish and do not describe it as an individual solo victory.
 - Distinguish participation, team results, individual results, awards, career milestones and popularity metrics; do not present one category as another.
 - A source title or URL that names a different person is not evidence about the subject, even if its snippet happens to mention them.
 - Every source must directly identify the person named in the question. Exclude unrelated people, games, generic award pages and search results that merely mention the topic in passing.\n- For a requested top 10, provide ten only if ten distinct, evidenced personal achievements exist; otherwise provide a shorter list and explain the evidence gap.\n- Search extracts are limited evidence, not full source verification. Explain when important details need checking.
 - If the sources do not contain enough evidence to answer, say exactly what is missing instead of guessing.
+- Before finalising, cross-check every numerical placement in your draft against the exact source row. If you cannot match the event and placement to a row, remove the claim.
+- If the extracts contain contradictory or malformed table text, say the results need manual verification and do not produce a ranked top 10.
 - Return JSON only: {"answer":"clear answer in markdown with citations","confidence":"high|medium|low","coverage_note":"short honest limitation or why evidence is sufficient","key_points":["..."]}.`;
     const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
       messages: [
