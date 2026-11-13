@@ -1921,54 +1921,59 @@ async function refreshModalConnections() {
   if (!key) { status.textContent = "Enter your Auto AI admin access key first."; $("#modalAdminKey").focus(); return; }
   status.textContent = "Checking this account's social connections...";
   details.replaceChildren();
-  try {
-    const headers = { "x-auto-ai-admin-key": key, "Cache-Control": "no-cache" };
-    const [yr, tr] = await Promise.all([
-      fetch("/api/youtube/status", { headers, cache: "no-store" }),
-      fetch("/api/tiktok/status", { headers, cache: "no-store" })
-    ]);
-    const [yt, tt] = await Promise.all([youtubeApiData(yr), youtubeApiData(tr)]);
-    sessionStorage.setItem("autoAiAdminKey", key);
-    $("#youtubeAdminKey").value = key;
-    const y = (yt.connections || []).find(item => item.account_id === accountId);
-    const t = (tt.connections || []).find(item => item.account_id === accountId);
-    const addRow = (platform, connection, label) => {
-      const row = document.createElement("div");
-      row.className = "connection-row";
-      const name = document.createElement("span");
-      name.textContent = label + ": " + (connection
+  const headers = { "x-auto-ai-admin-key": key, "Cache-Control": "no-cache" };
+  const loadPlatform = async platform => {
+    try {
+      const response = await fetch("/api/" + platform + "/status", { headers, cache: "no-store" });
+      const data = await youtubeApiData(response);
+      return { connection: (data.connections || []).find(item => item.account_id === accountId) || null, error: "" };
+    } catch (error) {
+      return { connection: null, error: error.message || (platform + " status unavailable") };
+    }
+  };
+  const [youtube, tiktok] = await Promise.all([loadPlatform("youtube"), loadPlatform("tiktok")]);
+  sessionStorage.setItem("autoAiAdminKey", key);
+  $("#youtubeAdminKey").value = key;
+  const addRow = (platform, result, label) => {
+    const row = document.createElement("div");
+    row.className = "connection-row";
+    const name = document.createElement("span");
+    const connection = result.connection;
+    name.textContent = label + ": " + (result.error
+      ? "Status unavailable — " + result.error
+      : connection
         ? (platform === "youtube" ? (connection.channel_title || "YouTube channel") : "@" + (connection.display_name || "TikTok profile")) + " · Connected"
         : "Not connected");
-      row.append(name);
-      if (connection) {
-        const disconnect = makeButton("Disconnect", "danger");
-        disconnect.type = "button";
-        disconnect.onclick = async () => {
-          if (!confirm("Disconnect " + label + " from this Auto AI account?")) return;
-          disconnect.disabled = true;
-          try {
-            const response = await fetch("/api/" + platform + "/disconnect", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
-              body: JSON.stringify({ account_id: accountId })
-            });
-            await youtubeApiData(response);
-            await refreshModalConnections();
-          } catch (error) {
-            status.textContent = "Could not disconnect " + label + ": " + error.message;
-            disconnect.disabled = false;
-          }
-        };
-        row.append(disconnect);
-      }
-      details.append(row);
-    };
-    addRow("youtube", y, "YouTube");
-    addRow("tiktok", t, "TikTok");
-    status.textContent = "Connection status loaded for " + (accounts.find(item => item.id === accountId)?.name || "this account") + ".";
-  } catch (error) {
-    status.textContent = "Connection check failed: " + error.message + ". Check the admin key and Cloudflare OAuth settings.";
-  }
+    row.append(name);
+    if (connection) {
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.type = "button";
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect " + label + " from this Auto AI account?")) return;
+        disconnect.disabled = true;
+        try {
+          const response = await fetch("/api/" + platform + "/disconnect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+            body: JSON.stringify({ account_id: accountId })
+          });
+          await youtubeApiData(response);
+          await refreshModalConnections();
+        } catch (error) {
+          status.textContent = "Could not disconnect " + label + ": " + error.message;
+          disconnect.disabled = false;
+        }
+      };
+      row.append(disconnect);
+    }
+    details.append(row);
+  };
+  addRow("youtube", youtube, "YouTube");
+  addRow("tiktok", tiktok, "TikTok");
+  const problems = [youtube.error && "YouTube: " + youtube.error, tiktok.error && "TikTok: " + tiktok.error].filter(Boolean);
+  status.textContent = problems.length
+    ? "Connection checks completed with an issue: " + problems.join(" · ")
+    : "Connection status loaded for " + (accounts.find(item => item.id === accountId)?.name || "this account") + ".";
 }
 async function connectSocialFromModal(platform) {
   const key = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
