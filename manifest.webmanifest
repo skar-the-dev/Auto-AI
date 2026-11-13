@@ -2,7 +2,7 @@
   "name": "Auto AI",
   "short_name": "Auto AI",
   "description": "Create and manage short-form video batches.",
-  "start_url": "/",
+  "start_url": "/app/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0b1020",
