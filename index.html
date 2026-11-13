@@ -393,7 +393,69 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   <div class="panel muted">Loading your channels...</div>
 </div>
 
-<p class="muted" style="margin-top:24px">
+<section class="panel" style="margin-top:24px" id="youtubePanel">
+  <div class="row"><h2>Social destinations</h2><span class="tag">Dedicated per channel</span></div>
+  <p>Each Auto AI channel has its own YouTube and TikTok destination. Select a channel here, or tap Manage social accounts on a channel card below.</p>
+  <label>Selected Auto AI channel
+    <select id="youtubeAccount"><option value="">Choose an account</option></select>
+  </label>
+  <label>Auto AI admin access key
+    <input id="youtubeAdminKey" type="password" autocomplete="current-password" placeholder="Enter the admin key configured in Cloudflare">
+  </label>
+  <div class="actions">
+    <button type="button" id="youtubeConnect">Connect YouTube</button>
+    <button type="button" class="secondary" id="youtubeRefresh">Refresh connection status</button>
+  </div>
+  <div id="youtubeStatus" class="notice" aria-live="polite">YouTube is not connected yet.</div>
+  <div class="subpanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+    <h3>YouTube destination · Publish videos</h3>
+    <p class="muted">Upload a completed video file to the connected channel. YouTube handles scheduled publishing after the upload.</p>
+    <label>Video file
+      <input id="youtubeVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime">
+    </label>
+    <label>Video title
+      <input id="youtubeVideoTitle" maxlength="100" placeholder="Enter a YouTube title">
+    </label>
+    <label>Description
+      <textarea id="youtubeVideoDescription" rows="3" maxlength="5000" placeholder="Video description"></textarea>
+    </label>
+    <label>Tags (comma separated)
+      <input id="youtubeVideoTags" placeholder="gaming, news, shorts">
+    </label>
+    <label>Visibility
+      <select id="youtubePrivacy">
+        <option value="private">Private</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="public">Public</option>
+      </select>
+    </label>
+    <label>Schedule (optional)
+      <input id="youtubePublishAt" type="datetime-local">
+    </label>
+    <label style="display:flex;gap:10px;align-items:flex-start">
+      <input id="youtubePublishConsent" type="checkbox" style="width:auto;margin-top:3px">
+      <span>I authorise Auto AI to upload the video I select or finish rendering to the connected channel using the visibility and schedule I selected.</span>
+    </label>
+    <button type="button" id="youtubeUpload">Upload to YouTube</button>
+    <div id="youtubeUploadStatus" class="notice" aria-live="polite">No video uploaded yet.</div>
+    <div style="margin-top:16px">
+      <div class="row"><h3>Recent YouTube uploads</h3><button type="button" class="secondary" id="youtubeHistoryRefresh">Refresh</button></div>
+      <div id="youtubeUploadHistory" class="muted" style="margin-top:10px">Enter your admin key and refresh to load upload history.</div>
+    </div>
+  </div>
+<div class="subpanel" id="tiktokPanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+  <div class="row"><h3>TikTok destination</h3><span class="tag">OAuth setup</span></div>
+  <p>Connect the TikTok profile dedicated to this Auto AI channel. Its connection is stored separately. Automatic posting still requires TikTok Content Posting approval and a publishing workflow.</p>
+  <label>Auto AI account
+    <span class="muted">Uses the Auto AI account selected above.</span>
+  </label>
+  <div class="actions">
+    <button type="button" id="tiktokConnect">Connect TikTok</button>
+    <button type="button" class="secondary" id="tiktokRefresh">Refresh connection status</button>
+  </div>
+  <div id="tiktokStatus" class="notice" aria-live="polite">TikTok is not connected yet. Enter your Auto AI admin key in the YouTube Connection section first.</div>
+</div>
+</section>\n\n<p class="muted" style="margin-top:24px">
   Auto AI cloud account dashboard. Video generation,
   automated scheduling and social publishing still
   need their separate integrations.
@@ -452,7 +514,7 @@ let accounts = [];
 let currentScript = null;
 let savedScripts = [];
 let stockFootageByScene = [];
-let editingId = null;\nlet selectedSocialAccountId = "";\nlet youtubeConnections = [];\nlet tiktokConnections = [];
+let editingId = null;
 let busy = false;
 
 const $ = selector => document.querySelector(selector);
@@ -535,31 +597,977 @@ function render() {
   }
   const youtubeSelect = $("#youtubeAccount");
   if (youtubeSelect) {
-    const previousYoutube = selectedSocialAccountId || youtubeSelect.value;
-    youtubeSelect.replaceChildren(new Option("Choose a channel to manage", ""));
+    const previousYoutube = youtubeSelect.value;
+    youtubeSelect.replaceChildren(new Option("Choose an account", ""));
     accounts.forEach(account => youtubeSelect.add(new Option(account.name + " — " + account.niche, account.id)));
-    selectedSocialAccountId = accounts.some(account => account.id === previousYoutube) ? previousYoutube : (accounts[0]?.id || "");
-    youtubeSelect.value = selectedSocialAccountId;
-    renderSelectedSocialAccount();
-  }function renderSelectedSocialAccount() {
-  const id = $("#youtubeAccount")?.value || selectedSocialAccountId;
-  selectedSocialAccountId = id;
+    if (accounts.some(account => account.id === previousYoutube)) youtubeSelect.value = previousYoutube;
+  }
+
+  $("#active").textContent =
+    accounts.filter(account => account.active).length;
+
+  const container = $("#accounts");
+  container.replaceChildren();
+
+  if (!accounts.length) {
+    const empty = document.createElement("div");
+    empty.className = "panel muted";
+    empty.textContent =
+      "No accounts yet. Tap Add account to create your first channel.";
+    container.append(empty);
+    return;
+  }
+
+  accounts.forEach(account => {
+    const card = document.createElement("article");
+    card.className = "account";
+
+    const top = document.createElement("div");
+    top.className = "row";
+
+    const state = document.createElement("span");
+    state.className = "tag";
+    state.textContent = account.active ? "● Active" : "Ⅱ Paused";
+
+    const interval = document.createElement("span");
+    interval.className = "muted";
+    interval.textContent = account.interval + " min";
+
+    top.append(state, interval);
+
+    const name = document.createElement("h3");
+    name.textContent = account.name;
+
+    const niche = document.createElement("div");
+    niche.className = "muted";
+    niche.textContent = account.niche;
+
+    const platforms = document.createElement("div");
+    platforms.className = "actions";
+
+    if (account.youtube) {
+      platforms.append(makeTag("YouTube Shorts"));
+    }
+
+    if (account.tiktok) {
+      platforms.append(makeTag("TikTok"));
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const toggle = makeButton(
+      account.active ? "Pause" : "Resume",
+      "secondary"
+    );
+
+    toggle.onclick = () => updateAccount(account, {
+      active: !account.active
+    });
+
+    const edit = makeButton("Edit", "secondary");
+    edit.onclick = () => openForm(account.id);
+
+    const remove = makeButton("Delete", "danger");
+    remove.onclick = () => deleteAccount(account);
+
+    actions.append(toggle, edit, remove);
+    card.append(top, name, niche, platforms, actions);
+    container.append(card);
+  });
+}
+
+function makeTag(text) {
+  const tag = document.createElement("span");
+  tag.className = "tag";
+  tag.textContent = text;
+  return tag;
+}
+
+function makeButton(text, className) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = text;
+  return button;
+}
+
+function openForm(id = null) {
+  editingId = id;
+
+  const form = $("#form");
   const account = accounts.find(item => item.id === id);
-  const title = account ? account.name + " — " + account.niche : "No channel selected";
-  const youtube = youtubeConnections.find(item => item.account_id === id);
-  const tiktok = tiktokConnections.find(item => item.account_id === id);
-  $("#youtubeStatus").textContent = account
-    ? (youtube ? "Connected to YouTube channel: " + (youtube.channel_title || "YouTube channel") : "No YouTube channel connected to " + account.name + " yet.")
-    : "Choose a channel below to manage its YouTube and TikTok destinations.";
-  $("#tiktokStatus").textContent = account
-    ? (tiktok ? "Connected to TikTok: @" + (tiktok.display_name || "TikTok profile") : "No TikTok profile connected to " + account.name + " yet.")
-    : "Choose a channel below to manage its TikTok destination.";
-  const publish = $("#youtubeUpload");
-  if (publish) publish.disabled = !account || !youtube;
-  const history = $("#youtubeUploadHistory");
-  if (history && !account) history.textContent = "Choose a channel to view its YouTube upload history.";
-  const heading = $("#youtubePanel")?.querySelector("h2");
-  if (heading) heading.textContent = "Social destinations" + (account ? " · " + title : "");
+
+  $("#formTitle").textContent =
+    account ? "Edit account" : "Add account";
+
+  form.elements.name.value = account?.name || "";
+  form.elements.niche.value = account?.niche || "";
+  form.elements.interval.value = account?.interval || 240;
+  form.elements.youtube.checked = account
+    ? account.youtube : true;
+  form.elements.tiktok.checked = account
+    ? account.tiktok : true;
+
+  $("#modal").showModal();
+}
+
+async function updateAccount(account, changes) {
+  if (busy) return;
+
+  try {
+    setBusy(true);
+
+    await apiRequest(API + "?id=" + encodeURIComponent(account.id), {
+      method: "PATCH",
+      body: JSON.stringify(changes)
+    });
+
+    await loadAccounts();
+    showMessage("Account updated successfully.");
+  } catch (error) {
+    showMessage("Could not update account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function deleteAccount(account) {
+  if (busy) return;
+
+  if (!confirm("Delete " + account.name + "?")) return;
+
+  try {
+    setBusy(true);
+
+    await apiRequest(API + "?id=" + encodeURIComponent(account.id), {
+      method: "DELETE"
+    });
+
+    await loadAccounts();
+    showMessage("Account deleted.");
+  } catch (error) {
+    showMessage("Could not delete account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("#add").onclick = () => openForm();
+
+$("#cancel").onclick = () => $("#modal").close();
+
+$("#form").onsubmit = async event => {
+  event.preventDefault();
+
+  if (busy) return;
+
+  const form = event.currentTarget;
+
+  const platforms = [];
+
+  if (form.elements.youtube.checked) platforms.push("youtube");
+  if (form.elements.tiktok.checked) platforms.push("tiktok");
+
+  if (!platforms.length) {
+    showMessage("Choose at least one platform.", true);
+    return;
+  }
+
+  const payload = {
+    name: form.elements.name.value.trim(),
+    niche: form.elements.niche.value.trim(),
+    interval_minutes: Number(form.elements.interval.value),
+    platforms
+  };
+
+  if (!payload.name || !payload.niche) {
+    showMessage("Enter an account name and content niche.", true);
+    return;
+  }
+
+  try {
+    setBusy(true);
+
+    if (editingId) {
+      await apiRequest(
+        API + "?id=" + encodeURIComponent(editingId),
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload)
+        }
+      );
+    } else {
+      await apiRequest(API, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    }
+
+    $("#modal").close();
+    await loadAccounts();
+
+    showMessage(editingId
+      ? "Account changes saved."
+      : "New account saved to Cloudflare.");
+
+    editingId = null;
+  } catch (error) {
+    showMessage("Could not save account: " + error.message, true);
+  } finally {
+    setBusy(false);
+  }
+};
+
+
+
+
+async function loadProductionQueue() {
+  const container = $("#productionQueue");
+  try {
+    const data = await apiRequest("/api/jobs");
+    const jobs = data.jobs || [];
+    $("#jobCount").textContent = jobs.length + " waiting";
+    container.replaceChildren();
+
+    if (!jobs.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "Nothing waiting right now. Your queued scripts will appear here.";
+      container.append(empty);
+      return;
+    }
+
+    jobs.forEach(job => {
+      const card = document.createElement("article");
+      card.className = "account queue-card";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "queue-delete";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Remove " + (job.title || "saved script") + " from production progress");
+      remove.title = "Remove from production progress";
+      remove.onclick = () => removeQueuedJob(job);
+      const title = document.createElement("h3");
+      title.textContent = job.title || "Saved script";
+      const detail = document.createElement("p");
+      detail.className = "muted";
+      detail.textContent = (job.niche || "No niche") + " • " + (job.topic || "");
+      const status = makeTag(job.status);
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = "Waiting for the video-rendering worker. No video has been rendered yet.";
+      card.append(remove, title, detail, status, note);
+      container.append(card);
+    });
+  } catch (error) {
+    container.textContent = "Could not load production progress: " + error.message;
+  }
+}
+
+async function removeQueuedJob(job) {
+  const title = job.title || "this saved script";
+  if (!window.confirm("Remove “" + title + "” from Production Progress? The saved script will remain in Video Library.")) return;
+  try {
+    await apiRequest("/api/jobs?id=" + encodeURIComponent(job.id), { method: "DELETE" });
+    showMessage("Removed from Production Progress. The saved script is still in Video Library.");
+    await loadProductionQueue();
+  } catch (error) {
+    showMessage("Could not remove queue item: " + error.message, true);
+  }
+}
+
+async function queueScript(item) {
+  try {
+    await apiRequest("/api/jobs", {
+      method: "POST",
+      body: JSON.stringify({ script_id: item.id })
+    });
+    showMessage("Script added to the production queue. It is waiting for the video renderer.");
+    await loadProductionQueue();
+  } catch (error) {
+    showMessage("Could not queue script: " + error.message, true);
+  }
+}
+
+async function loadScriptLibrary() {
+  const container = $("#scriptLibrary");
+  try {
+    const data = await apiRequest("/api/scripts");
+    savedScripts = data.scripts || [];
+    const renderSelect = $("#renderScript");
+    if (renderSelect) {
+      const previous = renderSelect.value;
+      renderSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => renderSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previous)) renderSelect.value = previous;
+    }
+    const sourceSelect = $("#sourceScript");
+    if (sourceSelect) {
+      const previousSource = sourceSelect.value;
+      sourceSelect.replaceChildren(new Option("Choose a saved script", ""));
+      savedScripts.forEach(item => sourceSelect.add(new Option(item.title, item.id)));
+      if (savedScripts.some(item => item.id === previousSource)) sourceSelect.value = previousSource;
+    }
+    $("#scriptCount").textContent = savedScripts.length + " saved";
+    container.replaceChildren();
+
+    if (!savedScripts.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.textContent = "No saved scripts yet. Create an outline and tap Save to Video Library.";
+      container.append(empty);
+      return;
+    }
+
+    savedScripts.forEach(item => {
+      const card = document.createElement("article");
+      card.className = "account";
+      const title = document.createElement("h3");
+      title.textContent = item.title;
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      meta.textContent = item.niche + " • " + item.topic;
+      const status = document.createElement("select");
+      ["Draft", "Ready for production", "Completed"].forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        status.append(option);
+      });
+      status.value = item.status;
+      status.onchange = () => updateScriptStatus(item.id, status.value);
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const edit = makeButton("Edit script", "secondary");
+      edit.onclick = () => {
+        const existing = card.querySelector(".script-editor");
+        if (existing) { existing.remove(); edit.textContent = "Edit script"; return; }
+        const editor = document.createElement("div");
+        editor.className = "script-editor notice";
+        editor.style.display = "grid";
+        editor.style.gap = "10px";
+        const field = (labelText, value, multiline = false) => {
+          const label = document.createElement("label");
+          label.textContent = labelText;
+          const input = multiline ? document.createElement("textarea") : document.createElement("input");
+          input.value = value || "";
+          input.style.width = "100%";
+          if (multiline) { input.rows = labelText === "Voiceover" ? 9 : 3; input.style.resize = "vertical"; }
+          label.append(input);
+          editor.append(label);
+          return input;
+        };
+        const titleInput = field("Video title", item.title);
+        const nicheInput = field("Niche", item.niche);
+        const topicInput = field("Topic", item.topic);
+        const hookInput = field("Opening hook", item.script.hook, true);
+        const voiceInput = field("Voiceover", item.script.voiceover, true);
+        const captionInput = field("Caption", item.script.caption, true);
+        const notesInput = field("Production notes (one per line)", Array.isArray(item.script.production_notes) ? item.script.production_notes.join("\n") : "", true);
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const save = makeButton("Save edits");
+        save.onclick = async () => {
+          save.disabled = true; save.textContent = "Saving...";
+          const updatedScript = { ...item.script, hook: hookInput.value.trim(), voiceover: voiceInput.value.trim(), caption: captionInput.value.trim(), production_notes: notesInput.value.split("\n").map(x=>x.trim()).filter(Boolean) };
+          try {
+            await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+              method: "PATCH",
+              body: JSON.stringify({ title: titleInput.value, niche: nicheInput.value, topic: topicInput.value, script: updatedScript })
+            });
+            showMessage("Script edits saved.");
+            await loadScriptLibrary();
+          } catch (error) {
+            showMessage("Could not save edits: " + error.message, true);
+            save.disabled = false; save.textContent = "Save edits";
+          }
+        };
+        const cancel = makeButton("Cancel", "secondary");
+        cancel.onclick = () => { editor.remove(); edit.textContent = "Edit script"; };
+        actions.append(save, cancel);
+        editor.append(actions);
+        card.append(editor);
+        edit.textContent = "Close editor";
+        editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      };
+      const view = makeButton("View script", "secondary");
+      view.onclick = () => {
+        const existing = card.querySelector(".saved-script-detail");
+        if (existing) {
+          existing.remove();
+          view.textContent = "View script";
+          return;
+        }
+        const detail = document.createElement("div");
+        detail.className = "saved-script-detail notice";
+        detail.style.marginTop = "12px";
+        const addSection = (heading, value) => {
+          if (!value) return;
+          const title = document.createElement("strong");
+          title.textContent = heading;
+          const text = document.createElement("p");
+          text.style.whiteSpace = "pre-wrap";
+          text.style.lineHeight = "1.55";
+          text.textContent = value;
+          detail.append(title, text);
+        };
+        addSection("Video style", item.script.video_style || "Style not recorded");
+        addSection("Opening hook", item.script.hook);
+        addSection("FULL VOICEOVER", item.script.voiceover || "No voiceover text was saved in this script.");
+        addSection("Caption", item.script.caption);
+        if (Array.isArray(item.script.production_notes)) addSection("Production notes", item.script.production_notes.join("\\n"));
+        if (Array.isArray(item.script.sources) && item.script.sources.length) {
+          const heading = document.createElement("strong");
+          heading.textContent = "Research sources";
+          detail.append(heading);
+          item.script.sources.forEach(source => {
+            const link = document.createElement("a");
+            link.href = source.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = source.title;
+            link.style.display = "block";
+            link.style.color = "#a9bcff";
+            link.style.margin = "8px 0";
+            detail.append(link);
+          });
+        }
+        card.append(detail);
+        view.textContent = "Hide script";
+        detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      };
+      const queue = makeButton("Queue for production", "secondary");
+      queue.onclick = () => queueScript(item);
+      const remove = makeButton("Delete", "danger");
+      remove.onclick = () => deleteSavedScript(item);
+      actions.append(edit, view, queue, remove);
+      card.append(title, meta, status, actions);
+      container.append(card);
+    });
+  } catch (error) {
+    container.textContent = "Could not load saved scripts: " + error.message;
+  }
+}
+
+async function saveCurrentScript() {
+  if (!currentScript) return;
+  try {
+    await apiRequest("/api/scripts", {
+      method: "POST",
+      body: JSON.stringify(currentScript)
+    });
+    showMessage("Script saved to your Video Library.");
+    await loadScriptLibrary();
+  } catch (error) {
+    showMessage("Could not save script: " + error.message, true);
+  }
+}
+
+async function updateScriptStatus(id, status) {
+  try {
+    await apiRequest("/api/scripts?id=" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    showMessage("Script status updated.");
+  } catch (error) {
+    showMessage("Could not update script: " + error.message, true);
+    await loadScriptLibrary();
+  }
+}
+
+async function deleteSavedScript(item) {
+  if (!confirm("Delete this saved script?")) return;
+  try {
+    await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+      method: "DELETE"
+    });
+    showMessage("Saved script deleted.");
+    await loadScriptLibrary();
+  } catch (error) {
+    showMessage("Could not delete script: " + error.message, true);
+  }
+}
+
+
+
+function renderBatchDraftReview(created) {
+  const wrap = $("#batchDraftReview");
+  const target = $("#batchDraftCards");
+  const ids = new Set((created || []).map(item => item.id));
+  const drafts = savedScripts.filter(item => ids.has(item.id));
+  target.replaceChildren();
+  if (!drafts.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "block";
+  drafts.forEach(item => {
+    const card = document.createElement("article");
+    card.className = "account";
+    const title = document.createElement("h3");
+    title.textContent = item.title;
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    meta.textContent = item.niche + " • " + item.topic;
+    const editor = document.createElement("div");
+    editor.style.display = "grid";
+    editor.style.gap = "9px";
+    const makeField = (name, value, rows) => {
+      const label = document.createElement("label");
+      label.textContent = name;
+      const input = rows ? document.createElement("textarea") : document.createElement("input");
+      input.value = value || "";
+      input.style.width = "100%";
+      if (rows) { input.rows = rows; input.style.resize = "vertical"; }
+      label.append(input); editor.append(label); return input;
+    };
+    const titleInput = makeField("Video title", item.title);
+    const hookInput = makeField("Opening hook", item.script.hook, 2);
+    const voiceInput = makeField("Voiceover script", item.script.voiceover, 8);
+    const captionInput = makeField("Caption", item.script.caption, 3);
+    const notesInput = makeField("Production notes (one per line)", (item.script.production_notes || []).join("\n"), 3);
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const save = makeButton("Save edits");
+    save.onclick = async () => {
+      save.disabled = true; save.textContent = "Saving...";
+      try {
+        const script = { ...item.script, hook: hookInput.value.trim(), voiceover: voiceInput.value.trim(),
+          caption: captionInput.value.trim(), production_notes: notesInput.value.split("\n").map(x=>x.trim()).filter(Boolean) };
+        await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+          method: "PATCH", body: JSON.stringify({ title: titleInput.value, script })
+        });
+        showMessage("Script edits saved.");
+        await loadScriptLibrary();
+        renderBatchDraftReview(created);
+      } catch (error) { showMessage("Could not save edits: " + error.message, true); save.disabled = false; save.textContent = "Save edits"; }
+    };
+    const queue = makeButton("Approve & queue", "secondary");
+    queue.onclick = async () => { await queueScript(item); };
+    actions.append(save, queue);
+    card.append(title, meta, editor, actions);
+    target.append(card);
+  });
+}
+
+function syncBatchNiche() {
+  const account = accounts.find(item => item.id === $("#batchAccount").value);
+  const select = $("#batchNiche");
+  if (!select) return;
+  const savedNiche = account && account.niche ? account.niche.trim() : "";
+  const option = [...select.options].find(item => item.value.toLowerCase() === savedNiche.toLowerCase());
+  if (savedNiche && !option) {
+    const custom = new Option(savedNiche + " (account niche)", savedNiche);
+    select.insertBefore(custom, select.querySelector('option[value="__account__"]'));
+  }
+  if (savedNiche) select.value = option ? option.value : savedNiche;
+}
+$("#batchAccount").addEventListener("change", syncBatchNiche);
+
+$("#batchForm").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("#batchButton");
+  const result = $("#batchResult");
+  let topic = $("#batchTopic").value.trim();
+  const niche = $("#batchNiche").value === "__account__"
+    ? (accounts.find(account => account.id === $("#batchAccount").value)?.niche || "")
+    : $("#batchNiche").value;
+  if (!$("#batchAccount").value) { result.style.display = "block"; result.textContent = "Choose an active account first."; return; }
+  if (!niche) { result.style.display = "block"; result.textContent = "Choose a content niche first."; return; }
+  const batchSettings = { account_id: $("#batchAccount").value, count: Number($("#batchCount").value), niche };
+  button.disabled = true;
+  button.textContent = topic ? "Understanding topic..." : "Finding a topic...";
+  result.style.display = "block";
+  result.textContent = topic ? "Auto AI is checking what you mean before creating anything..." : "Auto AI is finding a fresh topic in your selected niche...";
+  try {
+    const clarification = topic
+      ? await apiRequest("/api/batch", { method: "POST", body: JSON.stringify({ mode: "clarify", topic }) })
+      : { understood_topic: "", needs_clarification: false, options: [] };
+    let selectedMeaning = clarification.understood_topic || topic;
+    if (clarification.needs_clarification) {
+      result.replaceChildren();
+      const heading = document.createElement("h3"); heading.textContent = "Quick clarification";
+      const prompt = document.createElement("p"); prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?"; prompt.style.fontWeight = "700";
+      const options = document.createElement("div"); options.style.display = "grid"; options.style.gap = "9px";
+      const chosen = new Promise(resolve => {
+        clarification.options.forEach(option => {
+          const choice = document.createElement("button"); choice.type = "button"; choice.textContent = option; choice.onclick = () => resolve(option); options.append(choice);
+        });
+        const customWrap = document.createElement("div"); customWrap.style.display = "grid"; customWrap.style.gap = "8px";
+        const custom = document.createElement("input"); custom.maxLength = 500; custom.placeholder = "Or type what you mean...";
+        const customButton = document.createElement("button"); customButton.type = "button"; customButton.className = "secondary"; customButton.textContent = "Use my explanation";
+        customButton.onclick = () => { if (custom.value.trim()) resolve(custom.value.trim()); };
+        customWrap.append(custom, customButton); options.append(customWrap);
+      });
+      result.append(heading, prompt, options); button.style.display = "none"; selectedMeaning = await chosen;
+    }
+    button.textContent = "Creating drafts...";
+    result.textContent = topic ? "Creating your batch..." : "Creating scripts for the topic Auto AI discovered...";
+    const data = await apiRequest("/api/batch", {
+      method: "POST",
+      body: JSON.stringify({ ...batchSettings, topic, understood_topic: clarification.understood_topic || topic, clarification: clarification.needs_clarification ? selectedMeaning : "" })
+    });
+    topic = data.topic || topic;
+    result.textContent = data.topic_discovery
+      ? "Auto AI chose: " + topic + ". " + data.topic_discovery.reason + " " + data.message
+      : data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
+    await loadScriptLibrary(); renderBatchDraftReview(data.created || []);
+  } catch (error) {
+    result.textContent = "Batch could not be created: " + error.message;
+  } finally {
+    button.disabled = false; button.style.display = ""; button.textContent = "Generate scripts";
+  }
+};
+
+
+
+function openRenderedVideoDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("auto-ai-rendered-videos", 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("videos")) request.result.createObjectStore("videos", { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function saveRenderedVideo(item, blob, ext) {
+  const db = await openRenderedVideoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("videos", "readwrite");
+    tx.objectStore("videos").put({ id: crypto.randomUUID(), title: item.title, createdAt: new Date().toISOString(), ext, blob });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function loadRenderedVideos() {
+  const target = $("#deviceVideoList");
+  if (!target || !("indexedDB" in window)) return;
+  try {
+    const db = await openRenderedVideoDB();
+    const videos = await new Promise((resolve, reject) => {
+      const req = db.transaction("videos", "readonly").objectStore("videos").getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    target.replaceChildren();
+    if (!videos.length) { target.textContent = "No videos saved on this iPhone yet."; return; }
+    videos.sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    videos.forEach(video => {
+      const row = document.createElement("div");
+      row.className = "actions";
+      row.style.marginTop = "10px";
+      const label = document.createElement("span");
+      label.className = "muted";
+      label.textContent = video.title + " • " + new Date(video.createdAt).toLocaleString();
+      const download = makeButton("Download", "secondary");
+      download.onclick = () => {
+        const url = URL.createObjectURL(video.blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = video.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + "." + video.ext;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      };
+      const remove = makeButton("Delete", "danger");
+      remove.onclick = async () => {
+        const db2 = await openRenderedVideoDB();
+        await new Promise((resolve, reject) => {
+          const tx = db2.transaction("videos", "readwrite");
+          tx.objectStore("videos").delete(video.id);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        db2.close();
+        loadRenderedVideos();
+      };
+      row.append(label, download, remove);
+      target.append(row);
+    });
+  } catch (error) {
+    target.textContent = "Saved video storage unavailable: " + error.message;
+  }
+}
+
+let voiceoverObjectUrl = null;
+$("#generateVoiceover").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#voiceoverStatus");
+  const button = $("#generateVoiceover");
+  status.style.display = "block";
+  if (!item) {
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  const script = item.script || {};
+  const voiceText = String(script.voiceover || script.narration || script.hook || "").trim();
+  if (!voiceText) {
+    status.textContent = "This saved script has no voiceover text. Create or edit a script with narration first.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Generating voiceover...";
+  status.textContent = "Creating your AI narration with Cloudflare Workers AI. This can take a little while.";
+  try {
+    const response = await fetch("/api/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: voiceText, speaker: $("#voiceoverSpeaker").value })
+    });
+    if (!response.ok) {
+      const raw = await response.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "Voiceover request failed (HTTP " + response.status + ").");
+    }
+    const blob = await response.blob();
+    if (!blob.size || !blob.type.includes("audio")) throw new Error("The voice service did not return an MP3 audio file.");
+    if (voiceoverObjectUrl) URL.revokeObjectURL(voiceoverObjectUrl);
+    voiceoverObjectUrl = URL.createObjectURL(blob);
+    const player = $("#voiceoverPreview");
+    player.src = voiceoverObjectUrl;
+    player.style.display = "block";
+    const link = $("#downloadVoiceover");
+    link.href = voiceoverObjectUrl;
+    link.style.display = "inline-block";
+    status.textContent = "Your AI voiceover is ready. Play it below or download the MP3. Video audio-mixing is the next production step.";
+  } catch (error) {
+    status.textContent = "Voiceover failed: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Generate AI voiceover";
+  }
+};
+
+$("#findStockFootage").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#footageStatus");
+  const results = $("#footageResults");
+  const button = $("#findStockFootage");
+  status.style.display = "block";
+  results.replaceChildren();
+  if (!item) {
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  const script = item.script || {};
+  const scenes = Array.isArray(script.scenes) && script.scenes.length
+    ? script.scenes
+    : [{ text: script.hook || item.title }, { text: script.voiceover || item.topic }];
+  // Give each scene the wider subject context as well as its own visual details.
+  // This avoids searching generic words like "the crowd celebrates" without the game,
+  // tournament, player or team that the whole video is actually about.
+  const contextParts = [
+    script.title,
+    item.title,
+    item.topic,
+    item.niche,
+    script.topic,
+    script.game,
+    script.tournament,
+    script.event
+  ].filter(value => typeof value === "string" && value.trim());
+  const sceneQueries = scenes.slice(0, 6).map(scene => {
+    const sceneParts = [
+      scene.game,
+      scene.player,
+      scene.person,
+      scene.team,
+      scene.event,
+      scene.tournament,
+      scene.visual,
+      scene.text
+    ].filter(value => typeof value === "string" && value.trim());
+    const combined = [...contextParts, ...sceneParts].join(" ");
+    const unique = [...new Set(combined.split(/\s+/).filter(Boolean))];
+    return unique.slice(0, 18).join(" ").slice(0, 100);
+  }).filter(Boolean);
+  if (!sceneQueries.length) {
+    status.textContent = "This script has no scene details to search.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Finding real footage...";
+  stockFootageByScene = [];
+  try {
+    for (let index = 0; index < sceneQueries.length; index++) {
+      const query = sceneQueries[index];
+      status.textContent = "Searching real footage for scene " + (index + 1) + " of " + sceneQueries.length + ": " + query;
+      const response = await fetch("/api/youtube-footage?q=" + encodeURIComponent(query));
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "Footage search failed (HTTP " + response.status + ").");
+      const clips = data.videos || [];
+      stockFootageByScene[index] = null;
+
+      const card = document.createElement("article");
+      card.className = "notice";
+      card.style.marginTop = "12px";
+      const heading = document.createElement("strong");
+      heading.textContent = "Scene " + (index + 1) + " — " + query;
+      card.appendChild(heading);
+
+      if (!clips.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "No embeddable Creative Commons-labelled videos found for this scene.";
+        card.appendChild(empty);
+      }
+      clips.forEach((clip, clipIndex) => {
+        const option = document.createElement("div");
+        option.style.cssText = "margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)";
+        const title = document.createElement("p");
+        title.textContent = clip.title;
+        title.style.fontWeight = "700";
+        option.appendChild(title);
+        const frame = document.createElement("iframe");
+        frame.src = clip.embedUrl;
+        frame.title = "YouTube preview: " + clip.title;
+        frame.loading = "lazy";
+        frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        frame.allowFullscreen = true;
+        frame.referrerPolicy = "strict-origin-when-cross-origin";
+        frame.style.cssText = "width:100%;aspect-ratio:16/9;border:0;border-radius:10px;background:#000";
+        option.appendChild(frame);
+        const meta = document.createElement("p");
+        meta.textContent = "Channel: " + clip.channel + " • YouTube marks this result Creative Commons; independently verify the actual rights and any third-party content.";
+        option.appendChild(meta);
+        const link = document.createElement("a");
+        link.href = clip.watchUrl;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Open original on YouTube";
+        option.appendChild(link);
+        const choose = document.createElement("button");
+        choose.type = "button";
+        choose.className = "secondary";
+        choose.textContent = "Select for this scene";
+        choose.style.marginTop = "8px";
+        choose.onclick = () => {
+          stockFootageByScene[index] = clip;
+          status.textContent = "Selected footage for scene " + (index + 1) + ". " + stockFootageByScene.filter(Boolean).length + " scene(s) have a reviewed selection. This preview selection is not yet inserted into the exported MP4.";
+          option.querySelectorAll("button").forEach(button => {
+            button.textContent = button === choose ? "Selected ✓" : "Select for this scene";
+          });
+        };
+        option.appendChild(choose);
+        card.appendChild(option);
+      });
+      results.appendChild(card);
+    }
+    status.textContent = "Found footage results for " + sceneQueries.length + " scene(s). Preview and select the best match for each scene. Selections are saved in this page only; the next step is licensed clip import into the MP4 renderer.";
+  } catch (error) {
+    status.textContent = "Footage search stopped: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Find real people, teams & gameplay";
+  }
+};
+
+$("#renderVideo").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#renderStatus");
+  const button = $("#renderVideo");
+  if (!item) { status.style.display = "block"; status.textContent = "Choose a saved script first."; return; }
+  const script = item.script || {};
+  const scenes = Array.isArray(script.scenes) && script.scenes.length
+    ? script.scenes.map(scene => String(scene.text || scene.visual || "").trim()).filter(Boolean)
+    : [script.hook || item.title, script.voiceover || item.topic].map(value => String(value || "").trim()).filter(Boolean);
+  const narration = String(script.voiceover || script.narration || script.hook || scenes.join(". ")).trim();
+  if (narration.length < 10) { status.style.display = "block"; status.textContent = "This script needs more narration before it can become a video."; return; }
+  button.disabled = true;
+  button.textContent = "Rendering in the cloud...";
+  status.style.display = "block";
+  status.textContent = "Generating AI narration, then sending it to Auto AI's cloud video renderer. You can leave the page open while it works.";
+  try {
+    const voiceResponse = await fetch("/api/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: narration, speaker: $("#voiceoverSpeaker").value })
+    });
+    if (!voiceResponse.ok) {
+      const raw = await voiceResponse.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "AI voiceover generation failed.");
+    }
+    const audioBlob = await voiceResponse.blob();
+    if (!audioBlob.size || audioBlob.size > 10 * 1024 * 1024) throw new Error("Generated voiceover is empty or too large for cloud rendering.");
+    const bytes = new Uint8Array(await audioBlob.arrayBuffer());
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    const audioBase64 = btoa(binary);
+    status.textContent = "Voiceover ready. Rendering a 1080 × 1920 MP4 in the cloud...";
+    const renderResponse = await fetch("/api/render", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || ""
+      },
+      body: JSON.stringify({ title: item.title, scenes, audio_base64: audioBase64 })
+    });
+    if (!renderResponse.ok) {
+      const raw = await renderResponse.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "Cloud video rendering failed (HTTP " + renderResponse.status + ").");
+    }
+    const blob = await renderResponse.blob();
+    if (!blob.size || !blob.type.includes("video")) throw new Error("Cloud renderer returned an invalid video file.");
+    await saveRenderedVideo(item, blob, "mp4");
+    await loadRenderedVideos();
+    const url = URL.createObjectURL(blob);
+    const preview = $("#renderPreview");
+    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+    preview.dataset.objectUrl = url;
+    preview.src = url;
+    preview.style.display = "block";
+    const link = $("#downloadVideo");
+    link.href = url;
+    link.download = item.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() + "-auto-ai.mp4";
+    link.textContent = "Download finished MP4";
+    link.style.display = "inline-block";
+    status.textContent = "Cloud render finished successfully. The 1080 × 1920 MP4 has been saved to this device.";
+    if ($("#youtubePublishConsent")?.checked) {
+      const publishButton = $("#youtubeUpload");
+      publishButton.disabled = true;
+      try {
+        status.textContent = "Render finished. Uploading to your authorised YouTube channel...";
+        const published = await uploadYouTubeVideo(blob, item.title);
+        status.textContent = "Cloud render finished and " + published.status.toLowerCase() + " on YouTube: " + published.title;
+      } catch (uploadError) {
+        status.textContent = "Cloud render finished, but YouTube upload needs attention: " + uploadError.message;
+      } finally { publishButton.disabled = false; }
+    }
+  } catch (error) {
+    status.textContent = "Cloud production could not finish: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create vertical video draft";
+  }
+};
+
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+
+async function youtubeApiData(response) {
+  const raw = await response.text();
+  let data;
+  try { data = raw ? JSON.parse(raw) : {}; }
+  catch { throw new Error("YouTube API returned non-JSON (HTTP " + response.status + "): " + raw.slice(0, 220)); }
+  if (!response.ok || !data.success) {
+    throw new Error((data.error || data.message || "YouTube request failed") + " (HTTP " + response.status + ")");
+  }
+  return data;
+}
+function youtubeAdminHeaders() {
+  return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
 }
 async function refreshYoutubeStatus() {
   const target = $("#youtubeStatus");
@@ -569,19 +1577,358 @@ async function refreshYoutubeStatus() {
     const response = await fetch("/api/youtube/status", { headers: { "x-auto-ai-admin-key": key } });
     const data = await youtubeApiData(response);
     sessionStorage.setItem("autoAiAdminKey", key);
-    youtubeConnections = data.connections || [];
-    renderSelectedSocialAccount();
+    target.replaceChildren();
+    if (!data.connections.length) { target.textContent = "No YouTube channels connected yet."; return; }
+    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);\n    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its YouTube destination."; return; }\n    if (!selectedConnection.length) { target.textContent = "No YouTube channel connected to the selected Auto AI channel yet."; return; }\n    selectedConnection.forEach(connection => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginTop = "8px";
+      const label = document.createElement("span");
+      label.textContent = (connection.account_name || "Auto AI account") + " → " + (connection.channel_title || "YouTube channel") + " (connected)";
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect this YouTube channel from Auto AI?")) return;
+        const result = await fetch("/api/youtube/disconnect", { method: "POST", headers: youtubeAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
+        try { await youtubeApiData(result); }
+        catch (error) { target.textContent = error.message; return; }
+        refreshYoutubeStatus();
+      };
+      row.append(label, disconnect);
+      target.append(row);
+    });
   } catch (error) { target.textContent = "Status request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server."); }
+}
+async function refreshYoutubeUploadHistory() {
+  const target = $("#youtubeUploadHistory");
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = $("#youtubeAccount").value;
+  if (!key) { target.textContent = "Enter your admin key to view upload history."; return; }\n  if (!accountId) { target.textContent = "Choose a channel first."; return; }
+  target.textContent = "Loading upload history...";
+  try {
+    const query = accountId ? "?account_id=" + encodeURIComponent(accountId) : "";
+    const response = await fetch("/api/youtube/upload" + query, { headers: { "x-auto-ai-admin-key": key } });
+    const data = await youtubeApiData(response);
+    target.replaceChildren();
+    if (!data.uploads.length) { target.textContent = "No YouTube uploads recorded yet."; return; }
+    data.uploads.forEach(upload => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.padding = "10px 0";
+      row.style.borderBottom = "1px solid var(--line)";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = upload.title;
+      const detail = document.createElement("div");
+      detail.className = "muted";
+      detail.textContent = upload.status + " · " + upload.privacy_status + (upload.publish_at ? " · scheduled " + new Date(upload.publish_at).toLocaleString() : "") + " · " + new Date(upload.created_at + (upload.created_at.endsWith("Z") ? "" : "Z")).toLocaleString();
+      info.append(title, detail);
+      if (upload.error) { const error = document.createElement("div"); error.className = "error"; error.textContent = upload.error; info.append(error); }
+      row.append(info);
+      if (upload.video_id) {
+        const link = document.createElement("a");
+        link.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(upload.video_id);
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Open";
+        link.style.color = "#a9bcff";
+        row.append(link);
+      }
+      target.append(row);
+    });
+  } catch (error) { target.textContent = "Could not load upload history: " + error.message; }
+}
+$("#youtubeHistoryRefresh").onclick = refreshYoutubeUploadHistory;
+function sourceAdminKey() { return $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || ""; }
+function sourceApi(url, options = {}) { return apiRequest(url, { ...options, headers: { "x-auto-ai-admin-key": sourceAdminKey(), ...(options.headers || {}) } }); }
+async function loadClipSources() {
+  const scriptId = $("#sourceScript").value, target = $("#sourceRecords"), status = $("#sourceManagerStatus");
+  target.replaceChildren();
+  if (!scriptId) { status.textContent = "Choose a saved script to manage its sources."; return []; }
+  if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above to load source records."; return []; }
+  try {
+    const data = await sourceApi("/api/sources?script_id=" + encodeURIComponent(scriptId)), sources = data.sources || [];
+    const approved = sources.filter(source => source.review_status === "Approved").length;
+    status.textContent = sources.length + " candidate(s) saved · " + approved + " approved · " + (sources.length-approved) + " awaiting/rejected. Rights status is recorded separately.";
+    if (!sources.length) target.textContent = "No candidates saved for this script yet.";
+    sources.forEach(source => {
+      const card = document.createElement("article"); card.className = "account";
+      const heading = document.createElement("strong"); heading.textContent = source.title || source.creator || source.platform.toUpperCase() + " candidate";
+      const detail = document.createElement("p"); detail.className = "muted";
+      detail.textContent = source.platform.toUpperCase() + " · " + (source.creator || "Creator not recorded") + " · Rights: " + source.rights_status + " · Review: " + (source.review_status || "Pending review");
+      const link = document.createElement("a"); link.href = source.url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Open original source";
+      const note = document.createElement("p"); note.className = "muted"; note.textContent = source.rights_note || "No licence or permission evidence recorded.";
+      const mediaLabel = document.createElement("label"); mediaLabel.textContent = source.media_key ? "Imported footage is stored in your private clip library." : "Import a permitted download or a clip file you have the right to use.";
+      const mediaFile = document.createElement("input"); mediaFile.type = "file"; mediaFile.accept = "video/mp4,video/webm,video/quicktime,video/x-m4v"; mediaLabel.append(mediaFile);
+      const importButton = makeButton(source.media_key ? "Replace imported footage" : "Import clip file", "secondary");
+      importButton.onclick = async () => {
+        const file = mediaFile.files && mediaFile.files[0];
+        if (!file) { status.textContent = "Choose a video file first."; return; }
+        if (file.size > 90 * 1024 * 1024) { status.textContent = "Choose a video under 90 MB for this import route."; return; }
+        importButton.disabled = true; status.textContent = "Importing clip into private storage...";
+        try {
+          const form = new FormData(); form.append("script_id", scriptId); form.append("source_id", source.id); form.append("file", file);
+          const response = await fetch("/api/clips/import", { method:"POST", headers:{"x-auto-ai-admin-key":sourceAdminKey()}, body:form });
+          const result = await youtubeApiData(response);
+          status.textContent = "Clip imported to private storage (" + Math.round(file.size/1024/1024*10)/10 + " MB).";
+          await loadClipSources();
+        } catch(error) { status.textContent = "Clip import failed: " + error.message; }
+        finally { importButton.disabled = false; }
+      };
+      const mediaInfo = document.createElement("p"); mediaInfo.className = "muted";
+      mediaInfo.textContent = source.media_key ? "Stored file: " + (source.media_filename || "Imported clip") + " · " + Math.round((source.media_size || 0)/1024/1024*10)/10 + " MB" : "No video file imported yet.";
+      let previewVideo = null;
+      const previewButton = makeButton("Preview imported clip", "secondary");
+      previewButton.disabled = !source.media_key;
+      previewButton.onclick = async () => {
+        previewButton.disabled = true; previewButton.textContent = "Loading preview...";
+        try {
+          const response = await fetch("/api/clips/import?script_id="+encodeURIComponent(scriptId)+"&source_id="+encodeURIComponent(source.id), { headers:{"x-auto-ai-admin-key":sourceAdminKey()} });
+          if (!response.ok) { const data=await response.json().catch(()=>({})); throw new Error(data.error || "Could not load clip preview."); }
+          const blob = await response.blob();
+          if (previewVideo?.dataset.objectUrl) URL.revokeObjectURL(previewVideo.dataset.objectUrl);
+          previewVideo = document.createElement("video"); previewVideo.controls=true; previewVideo.playsInline=true; previewVideo.preload="metadata"; previewVideo.style.width="100%"; previewVideo.style.maxHeight="420px";
+          previewVideo.dataset.objectUrl=URL.createObjectURL(blob); previewVideo.src=previewVideo.dataset.objectUrl;
+          card.insertBefore(previewVideo,reviewNote);
+          previewButton.textContent="Reload preview";
+        } catch(error) { status.textContent="Preview failed: "+error.message; previewButton.textContent="Preview imported clip"; }
+        finally { previewButton.disabled=false; }
+      };
+
+
+      const reviewNote = document.createElement("textarea"); reviewNote.rows = 2; reviewNote.maxLength = 1000; reviewNote.placeholder = "Your review note (required to approve/reject)";
+      reviewNote.value = source.review_note || "";
+      const saveReview = async decision => {
+        try {
+          await sourceApi("/api/sources", { method:"PATCH", body:JSON.stringify({ id:source.id, review_status:decision, review_note:reviewNote.value.trim() }) });
+          await loadClipSources();
+        } catch (error) { status.textContent = "Could not save review: " + error.message; }
+      };
+      const approve = makeButton("Approve after checking", "");
+      approve.onclick = () => {
+        if (!confirm("You are confirming that you have reviewed this clip and accept responsibility for deciding whether it may be used. This does not create permission or override copyright law. Continue?")) return;
+        saveReview("Approved");
+      };
+      const reject = makeButton("Reject this clip", "secondary"); reject.onclick = () => saveReview("Rejected");
+      const reset = makeButton("Return to pending", "secondary"); reset.onclick = () => saveReview("Pending review");
+      const remove = makeButton("Remove candidate", "danger");
+      remove.onclick = async () => { if (!confirm("Remove this candidate and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method:"DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove candidate: " + error.message; } };
+      const actions = document.createElement("div"); actions.className = "actions"; actions.append(approve,reject,reset,remove);
+      card.append(heading,detail,link,note,mediaLabel,importButton,mediaInfo,previewButton,reviewNote,actions); target.append(card);
+    });
+    return sources;
+  } catch (error) { status.textContent = "Could not load candidates: " + error.message; return []; }
+}
+async function findAndCollectClips() {
+  const scriptId=$("#sourceScript").value, script=savedScripts.find(item=>item.id===scriptId);
+  const status=$("#autoFindStatus"), results=$("#autoFindResults"), button=$("#autoFindClips");
+  if(!scriptId || !script) { status.textContent="Choose a saved script first."; return; }
+  if(!sourceAdminKey()) { status.textContent="Enter your Auto AI admin key in the Social Connections section."; return; }
+  const query=($("#sourceSearchQuery").value.trim() || script.topic || script.title || "").slice(0,100);
+  if(query.length<2) { status.textContent="Add a topic to search for."; return; }
+  button.disabled=true; results.replaceChildren(); status.textContent="Searching YouTube for relevant Creative Commons-labelled videos...";
+  try {
+    const response=await fetch("/api/youtube-footage?q="+encodeURIComponent(query));
+    const data=await youtubeApiData(response);
+    let saved=0;
+    for(const video of (data.videos||[])) {
+      try {
+        await sourceApi("/api/sources",{method:"POST",body:JSON.stringify({
+          script_id:scriptId,platform:"youtube",url:video.watchUrl,creator:video.channel,
+          title:video.title,rights_status:"Creative Commons",
+          rights_note:"YouTube search returned this item with the Creative Commons filter. Verify the individual video's licence and terms before reuse. Discovery result only; no media file downloaded."
+        })});
+        saved++;
+        const card=document.createElement("article"); card.className="account";
+        const title=document.createElement("strong"); title.textContent=video.title;
+        const creator=document.createElement("p"); creator.className="muted"; creator.textContent=video.channel+" · Creative Commons search filter · Pending your review";
+        const link=document.createElement("a"); link.href=video.watchUrl; link.target="_blank"; link.rel="noopener"; link.textContent="Open original video";
+        const preview=document.createElement("iframe"); preview.src=video.embedUrl; preview.title=video.title; preview.loading="lazy"; preview.allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"; preview.allowFullscreen=true; preview.style.width="100%"; preview.style.aspectRatio="16/9"; preview.style.border="0"; preview.style.borderRadius="12px";
+        card.append(title,creator,preview,link); results.append(card);
+      } catch(error) { /* keep collecting other results */ }
+    }
+    status.textContent=saved+" candidate(s) automatically saved for your review. These are previews/source records, not downloaded video files.";
+    await loadClipSources();
+  } catch(error) { status.textContent="Automatic search failed: "+error.message; }
+  finally { button.disabled=false; }
+}
+$("#autoFindClips").onclick=findAndCollectClips;
+$("#sourceScript").onchange = loadClipSources;
+document.querySelectorAll("[data-source-search]").forEach(button => { button.onclick = () => {
+  const query = $("#sourceSearchQuery").value.trim() || (savedScripts.find(item => item.id === $("#sourceScript").value)?.topic || "");
+  if (!query) { $("#sourceManagerStatus").textContent = "Enter a search topic first."; return; }
+  const q = encodeURIComponent(query), urls = { youtube:"https://www.youtube.com/results?search_query="+q, tiktok:"https://www.tiktok.com/search?q="+q, twitch:"https://www.twitch.tv/search?term="+q, google:"https://www.google.com/search?q="+q };
+  window.open(urls[button.dataset.sourceSearch], "_blank", "noopener");
+}; });
+$("#saveClipSource").onclick = async () => {
+  const scriptId = $("#sourceScript").value, status = $("#sourceManagerStatus"), button = $("#saveClipSource");
+  if (!scriptId) { status.textContent = "Choose a saved script first."; return; }
+  if (!sourceAdminKey()) { status.textContent = "Enter your Auto AI admin key above first."; return; }
+  button.disabled = true;
+  try {
+    await sourceApi("/api/sources", { method:"POST", body:JSON.stringify({ script_id:scriptId, platform:$("#sourcePlatform").value, url:$("#sourceUrl").value.trim(), creator:$("#sourceCreator").value.trim(), title:$("#sourceTitle").value.trim(), rights_status:$("#sourceRights").value, rights_note:$("#sourceRightsNote").value.trim() }) });
+    $("#sourceUrl").value=""; $("#sourceCreator").value=""; $("#sourceTitle").value=""; $("#sourceRightsNote").value="";
+    await loadClipSources();
+  } catch(error) { status.textContent = "Could not save candidate: " + error.message; } finally { button.disabled=false; }
+};
+function formatSourceCredits(sources) {
+  if (!sources.length) return "";
+  return "\n\nVIDEO SOURCES & CREDITS\n" + sources.map((source,index) => (index+1)+". "+(source.title||source.platform.toUpperCase()+" clip")+(source.creator?" — "+source.creator:"")+"\n   "+source.url+"\n   Usage status recorded: "+source.rights_status+(source.rights_note?"\n   Licence / permission details: "+source.rights_note:"")).join("\n\n")+"\n\nCredit identifies the source; it does not itself grant permission to reuse copyrighted material.";
+}
+
+async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
+  const status = $("#youtubeUploadStatus");
+  const file = fileOverride || $("#youtubeVideoFile").files?.[0];
+  const accountId = $("#youtubeAccount").value;
+  const title = $("#youtubeVideoTitle").value.trim() || suggestedTitle;
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const privacy = $("#youtubePrivacy").value;
+  const scheduledLocal = $("#youtubePublishAt").value;
+  if (!key) throw new Error("Enter your Auto AI admin key first.");
+  if (!accountId) throw new Error("Choose the connected Auto AI account.");
+  if (!file) throw new Error("Choose a finished video file.");
+  if (!title) throw new Error("Enter a YouTube title.");
+  if (!$("#youtubePublishConsent").checked) throw new Error("Confirm the upload authorisation before continuing.");
+  if (file.size > 100 * 1024 * 1024) throw new Error("This first upload route supports files up to 100 MB. Larger files need direct cloud storage upload.");
+  if (scheduledLocal && privacy !== "private") throw new Error("Scheduled YouTube videos must be uploaded as Private.");
+  $("#youtubeVideoTitle").value = title;
+  let description = $("#youtubeVideoDescription").value;
+  const selectedSourceScript = $("#sourceScript")?.value || "";
+  if (selectedSourceScript) {
+    const sourceData = await sourceApi("/api/sources?script_id=" + encodeURIComponent(selectedSourceScript));
+    const sources = sourceData.sources || [];
+    const unreviewed = sources.filter(source => source.review_status !== "Approved" || !source.media_key);
+    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) are not approved or do not have an imported video file. Review and import each candidate before uploading.");
+    const credits = formatSourceCredits(sources).slice(-4800);
+    description = description.slice(0, Math.max(0, 5000 - credits.length)) + credits;
+    $("#youtubeVideoDescription").value = description;
+  }
+  const headers = {
+    "x-auto-ai-admin-key": key,
+    "x-youtube-account-id": accountId,
+    "x-youtube-title": title,
+    "x-youtube-description": description,
+    "x-youtube-tags": JSON.stringify($("#youtubeVideoTags").value.split(",").map(tag => tag.trim()).filter(Boolean)),
+    "x-youtube-privacy": privacy,
+    "Content-Type": file.type || "video/mp4"
+  };
+  if (scheduledLocal) headers["x-youtube-publish-at"] = new Date(scheduledLocal).toISOString();
+  status.textContent = "Uploading to YouTube. Keep Auto AI open until YouTube confirms the upload.";
+  const response = await fetch("/api/youtube/upload", { method: "POST", headers, body: file });
+  const data = await youtubeApiData(response);
+  status.replaceChildren();
+  const message = document.createElement("p");
+  message.textContent = data.status + ": " + data.title;
+  const link = document.createElement("a");
+  link.href = data.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Open YouTube video";
+  link.style.color = "#a9bcff";
+  status.append(message, link);
+  return data;
+}
+$("#youtubeUpload").onclick = async () => {
+  const button = $("#youtubeUpload");
+  button.disabled = true;
+  try { await uploadYouTubeVideo(); }
+  catch (error) { $("#youtubeUploadStatus").textContent = "Upload failed: " + error.message; }
+  finally { button.disabled = false; }
+};
+$("#youtubeConnect").onclick = async () => {
+  const key = $("#youtubeAdminKey").value.trim();
+  const accountId = $("#youtubeAccount").value;
+  const target = $("#youtubeStatus");
+  if (!key) { target.textContent = "Enter the admin access key first."; return; }
+  if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
+  const button = $("#youtubeConnect");
+  button.disabled = true;
+  target.textContent = "Starting secure Google authorisation...";
+  try {
+    const response = await fetch("/api/youtube/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+      body: JSON.stringify({ account_id: accountId })
+    });
+    const data = await youtubeApiData(response);
+    sessionStorage.setItem("autoAiAdminKey", key);
+    location.href = data.authorization_url;
+  } catch (error) {
+    target.textContent = "Connect request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server. Check the browser connection and Cloudflare Function logs.");
+    button.disabled = false;
+  }
+};
+$("#youtubeRefresh").onclick = refreshYoutubeStatus;\n$("#youtubeAccount").onchange = () => { refreshYoutubeStatus(); refreshTikTokStatus(); refreshYoutubeUploadHistory(); };
+
+function tiktokAdminHeaders() {
+  return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
 }
 async function refreshTikTokStatus() {
   const target = $("#tiktokStatus");
   const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
-  if (!key) { target.textContent = "Enter the Auto AI admin key to check connected profiles."; return; }
+  if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
   try {
     const response = await fetch("/api/tiktok/status", { headers: { "x-auto-ai-admin-key": key } });
     const data = await youtubeApiData(response);
-    tiktokConnections = data.connections || [];
-    renderSelectedSocialAccount();
+    target.replaceChildren();
+    if (!data.connections.length) { target.textContent = "No TikTok accounts connected yet."; return; }
+    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);\n    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its TikTok destination."; return; }\n    if (!selectedConnection.length) { target.textContent = "No TikTok profile connected to the selected Auto AI channel yet."; return; }\n    selectedConnection.forEach(connection => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginTop = "8px";
+      const label = document.createElement("span");
+      label.textContent = (connection.account_name || "Auto AI account") + " → @" + (connection.display_name || "TikTok account") + " (connected)";
+      const disconnect = makeButton("Disconnect", "danger");
+      disconnect.onclick = async () => {
+        if (!confirm("Disconnect this TikTok account from Auto AI?")) return;
+        const result = await fetch("/api/tiktok/disconnect", { method: "POST", headers: tiktokAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
+        try { await youtubeApiData(result); }
+        catch (error) { target.textContent = error.message; return; }
+        refreshTikTokStatus();
+      };
+      row.append(label, disconnect);
+      target.append(row);
+    });
   } catch (error) { target.textContent = "TikTok status request failed: " + (error.message || "No response received."); }
 }
+$("#tiktokConnect").onclick = async () => {
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = $("#youtubeAccount").value;
+  const target = $("#tiktokStatus");
+  if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
+  if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
+  const button = $("#tiktokConnect");
+  button.disabled = true;
+  target.textContent = "Starting secure TikTok authorisation...";
+  try {
+    const response = await fetch("/api/tiktok/connect", { method: "POST", headers: tiktokAdminHeaders(), body: JSON.stringify({ account_id: accountId }) });
+    const data = await youtubeApiData(response);
+    sessionStorage.setItem("autoAiAdminKey", key);
+    location.href = data.authorization_url;
+  } catch (error) {
+    target.textContent = "TikTok connection could not start: " + (error.message || "Check Cloudflare settings and try again.");
+    button.disabled = false;
+  }
+};
+$("#tiktokRefresh").onclick = refreshTikTokStatus;
+if ($("#youtubeAdminKey")) $("#youtubeAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
+const youtubeParams = new URLSearchParams(location.search);
+if (youtubeParams.has("youtube")) {
+  $("#youtubeStatus").textContent = youtubeParams.get("youtube") === "connected"
+    ? "Google authorised the YouTube channel. Checking saved connection..."
+    : "YouTube connection issue: " + (youtubeParams.get("message") || "Please try again.");
+  history.replaceState({}, "", location.pathname);
+}
+if (youtubeParams.has("tiktok")) {
+  $("#tiktokStatus").textContent = youtubeParams.get("tiktok") === "connected"
+    ? "TikTok authorised successfully. Checking saved connection..."
+    : "TikTok connection issue: " + (youtubeParams.get("message") || "Please try again.");
+  history.replaceState({}, "", location.pathname);
+}
 
+loadAccounts();
+loadScriptLibrary();
+loadProductionQueue();
+loadRenderedVideos();
+</script>
+</body>
+</html>
