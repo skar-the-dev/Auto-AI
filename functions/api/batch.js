@@ -109,7 +109,7 @@ export async function onRequestPost({ request, env }) {
     // Generate the complete batch before saving, so a model error does not leave a half-finished batch.
     const drafts = [];
     for (let i = 0; i < count; i++) {
-      const scriptTopic = count === 1 ? finalTopic : `${finalTopic} — ${angles[i]}`;
+      const scriptTopic = finalTopic;
       const allowedStyles = new Set(["curiosity", "facts", "story", "list", "gaming", "reddit_story", "motivation", "cinematic", "mystery"]);
       const requestedStyle = Array.isArray(body.styles) ? String(body.styles[i] || "") : "";
       const style = allowedStyles.has(requestedStyle) ? requestedStyle : (i % 2 === 0 ? "curiosity" : "facts");
