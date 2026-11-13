@@ -846,6 +846,58 @@ async function loadScriptLibrary() {
       status.onchange = () => updateScriptStatus(item.id, status.value);
       const actions = document.createElement("div");
       actions.className = "actions";
+      const edit = makeButton("Edit script", "secondary");
+      edit.onclick = () => {
+        const existing = card.querySelector(".script-editor");
+        if (existing) { existing.remove(); edit.textContent = "Edit script"; return; }
+        const editor = document.createElement("div");
+        editor.className = "script-editor notice";
+        editor.style.display = "grid";
+        editor.style.gap = "10px";
+        const field = (labelText, value, multiline = false) => {
+          const label = document.createElement("label");
+          label.textContent = labelText;
+          const input = multiline ? document.createElement("textarea") : document.createElement("input");
+          input.value = value || "";
+          input.style.width = "100%";
+          if (multiline) { input.rows = labelText === "Voiceover" ? 9 : 3; input.style.resize = "vertical"; }
+          label.append(input);
+          editor.append(label);
+          return input;
+        };
+        const titleInput = field("Video title", item.title);
+        const nicheInput = field("Niche", item.niche);
+        const topicInput = field("Topic", item.topic);
+        const hookInput = field("Opening hook", item.script.hook, true);
+        const voiceInput = field("Voiceover", item.script.voiceover, true);
+        const captionInput = field("Caption", item.script.caption, true);
+        const notesInput = field("Production notes (one per line)", Array.isArray(item.script.production_notes) ? item.script.production_notes.join("\n") : "", true);
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const save = makeButton("Save edits");
+        save.onclick = async () => {
+          save.disabled = true; save.textContent = "Saving...";
+          const updatedScript = { ...item.script, hook: hookInput.value.trim(), voiceover: voiceInput.value.trim(), caption: captionInput.value.trim(), production_notes: notesInput.value.split("\n").map(x=>x.trim()).filter(Boolean) };
+          try {
+            await apiRequest("/api/scripts?id=" + encodeURIComponent(item.id), {
+              method: "PATCH",
+              body: JSON.stringify({ title: titleInput.value, niche: nicheInput.value, topic: topicInput.value, script: updatedScript })
+            });
+            showMessage("Script edits saved.");
+            await loadScriptLibrary();
+          } catch (error) {
+            showMessage("Could not save edits: " + error.message, true);
+            save.disabled = false; save.textContent = "Save edits";
+          }
+        };
+        const cancel = makeButton("Cancel", "secondary");
+        cancel.onclick = () => { editor.remove(); edit.textContent = "Edit script"; };
+        actions.append(save, cancel);
+        editor.append(actions);
+        card.append(editor);
+        edit.textContent = "Close editor";
+        editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      };
       const view = makeButton("View script", "secondary");
       view.onclick = () => {
         const existing = card.querySelector(".saved-script-detail");
@@ -896,7 +948,7 @@ async function loadScriptLibrary() {
       queue.onclick = () => queueScript(item);
       const remove = makeButton("Delete", "danger");
       remove.onclick = () => deleteSavedScript(item);
-      actions.append(view, queue, remove);
+      actions.append(edit, view, queue, remove);
       card.append(title, meta, status, actions);
       container.append(card);
     });
