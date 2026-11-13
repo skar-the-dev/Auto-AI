@@ -187,6 +187,47 @@ function parseStructuredModelOutput(result) {
   throw new Error("The question planner returned an invalid structured response.");
 }
 
+async function clarifyQuestion(question, env) {
+  const prompt = `Decide whether the user's question is clear enough to research accurately without guessing.
+QUESTION: ${question}
+
+Only ask a clarification when different reasonable interpretations would lead to materially different answers or searches.
+Examples:
+- "top earning games" is ambiguous: total game revenue, esports prize pools, or professional player earnings.
+- "best phone" is ambiguous without a use case or budget.
+- "What caused the dinosaurs to go extinct?" is clear enough; research it directly.
+- Do not ask unnecessary questions about obvious wording or minor details.
+
+Return JSON only:
+{
+ "needs_clarification": true or false,
+ "reason": "brief reason",
+ "clarifying_question": "one concise question, or empty string",
+ "options": ["up to 4 short distinct choices, each precise"],
+ "assumption": "if clear, state the intended interpretation in one sentence"
+}
+Make options mutually distinct, cover the most likely meanings, and allow the user to choose. Never answer or search yet.`;
+  const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    messages: [
+      { role: "system", content: "You are Auto AI's clarification assistant. Resolve material ambiguity before research, but never burden users with needless questions. Return valid JSON only." },
+      { role: "user", content: prompt }
+    ],
+    max_completion_tokens: 500,
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    chat_template_kwargs: { enable_thinking: false }
+  });
+  const parsed = parseStructuredModelOutput(result);
+  const options = Array.isArray(parsed.options) ? parsed.options.map(value => String(value).trim()).filter(Boolean).slice(0,4) : [];
+  return {
+    needs_clarification: parsed.needs_clarification === true && Boolean(parsed.clarifying_question) && options.length >= 2,
+    reason: String(parsed.reason || "").slice(0,300),
+    clarifying_question: String(parsed.clarifying_question || "").slice(0,300),
+    options,
+    assumption: String(parsed.assumption || "").slice(0,500)
+  };
+}
+
 async function understandQuestion(question, env) {
   const prompt = `Understand the user's COMPLETE question before searching.
 Do not answer it. Plan a focused research strategy for any subject or domain.
@@ -419,15 +460,22 @@ export async function onRequestPost({ request, env }) {
     const question = String(body.question || "").trim().slice(0, 500);
     if (question.length < 4) return json({ success: false, error: "Enter a question with a little more detail." }, 400);
 
+    if (body.mode === "clarify") {
+      const clarification = await clarifyQuestion(question, env);
+      return json({ success: true, ...clarification });
+    }
+    const clarificationContext = String(body.clarification || "").trim().slice(0, 500);
+    const researchQuestion = clarificationContext ? question + " (User clarified: " + clarificationContext + ")" : question;
+
     let researchPlan;
-    try { researchPlan = await understandQuestion(question, env); }
+    try { researchPlan = await understandQuestion(researchQuestion, env); }
     catch (error) {
       return json({ success: false, error: "Auto AI could not confidently understand the question well enough to plan relevant research. Please rephrase it or add a little context. Details: " + (error.message || "Research planning failed.") }, 502);
     }
 
     let sources = [];
     let searchWarning = "";
-    try { sources = await searchWeb(question, researchPlan.search_queries); }
+    try { sources = await searchWeb(researchQuestion, researchPlan.search_queries); }
     catch (error) { searchWarning = error.message || "Web search failed."; }
 
     if (!sources.length) {
