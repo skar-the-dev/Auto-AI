@@ -255,31 +255,12 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   <div id="youtubeStatus" class="notice" aria-live="polite">YouTube is not connected yet.</div>
 </section>
 
-<section class="panel" style="margin-top:24px">
-  <div class="row"><h2>Script Studio</h2><span class="tag">AI-powered scripts</span></div>
-  <p>Generate original short-form scripts with Cloudflare Workers AI. Scripts are AI first drafts and factual claims must be checked before publishing.</p>
-  <form id="ideaForm">
-    <label>Account niche<input id="ideaNiche" required placeholder="e.g. Gaming, facts, motivation"></label>
-    <label>Video topic<input id="ideaTopic" required placeholder="e.g. 5 facts about space"></label>
-    <label>Style
-      <select id="ideaStyle">
-        <option value="curiosity">Curiosity hook</option>
-        <option value="facts">Facts / list</option>
-        <option value="story">Story</option>
-        <option value="list">Quick list</option>
-      </select>
-    </label>
-    <button type="submit" id="ideaButton">Create script outline</button>
-  </form>
-  <div id="ideaResult" class="notice" style="display:none;margin-top:16px"></div>
-</section>
-
 <section class="panel batch-studio" style="margin-top:24px">
   <div class="batch-heading">
     <div>
       <span class="eyebrow">YOUR CONTENT WORKFLOW</span>
-      <h2>Batch Studio</h2>
-      <p class="batch-intro">Tell Auto AI what you want to make. It will create your video scripts for the selected channel.</p>
+      <h2>Content Engine</h2>
+      <p class="batch-intro">Create content for your channels. Choose your niche, describe the topic and let Auto AI generate script drafts.</p>
     </div>
     <span class="tag">Up to 6 videos</span>
   </div>
@@ -320,9 +301,14 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
         <option value="5">5 videos</option><option value="6" selected>6 videos</option>
       </select>
     </label>
-    <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Generate my videos</button>
+    <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Generate scripts</button>
   </form>
   <div id="batchResult" class="notice batch-result" style="display:none" aria-live="polite"></div>
+  <div class="subpanel" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line,#26344a)">
+    <div class="row"><h3>Production progress</h3><span class="tag" id="jobCount">0 waiting</span></div>
+    <p class="muted">Track scripts waiting for the video-rendering stage. Video rendering is not automated yet.</p>
+    <div id="productionQueue" class="grid"><div class="muted">Loading production queue...</div></div>
+  </div>
 </section>
 
 <section class="panel" id="videoCreatorPanel" style="margin-top:24px">
@@ -370,14 +356,6 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   </div>
 </section>
 
-
-<section class="panel" style="margin-top:24px">
-  <div class="row"><h2>Production Queue</h2><span class="tag" id="jobCount">0 waiting</span></div>
-  <p>Saved scripts placed here are recorded for the video-rendering stage. They will wait here until a rendering worker is connected.</p>
-  <div id="productionQueue" class="grid">
-    <div class="muted">Loading production queue...</div>
-  </div>
-</section>
 
 <div class="row" style="margin-top:28px">
   <h2>Your channels</h2>
@@ -765,7 +743,7 @@ async function loadProductionQueue() {
     if (!jobs.length) {
       const empty = document.createElement("div");
       empty.className = "muted";
-      empty.textContent = "Nothing queued yet. Use Queue for production on a saved script.";
+      empty.textContent = "Nothing waiting right now. Your queued scripts will appear here.";
       container.append(empty);
       return;
     }
@@ -786,7 +764,7 @@ async function loadProductionQueue() {
       container.append(card);
     });
   } catch (error) {
-    container.textContent = "Could not load production queue: " + error.message;
+    container.textContent = "Could not load production progress: " + error.message;
   }
 }
 
@@ -1164,13 +1142,13 @@ $("#batchForm").onsubmit = async event => {
         clarification: clarification.needs_clarification ? selectedMeaning : ""
       })
     });
-    result.textContent = data.message + " Topic understood as: " + selectedMeaning + ". Open Video Library to review them.";
+    result.textContent = data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
     await loadScriptLibrary();
   } catch (error) {
     result.textContent = "Batch could not be created: " + error.message;
   } finally {
     button.disabled = false;
-    button.textContent = "Create batch drafts";
+    button.textContent = "Generate scripts";
   }
 };
 
