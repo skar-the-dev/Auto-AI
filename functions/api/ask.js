@@ -16,6 +16,32 @@ function stripHtml(value) {
     .replace(/\s+/g, " ").trim();
 }
 
+
+function extractPageText(html) {
+  let content = String(html || "")
+    .replace(/<!--[\\s\\S]*?-->/g, " ")
+    .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
+    .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
+    .replace(/<(nav|footer|header|aside|form|noscript|svg)[^>]*>[\\s\\S]*?<\\/\\1>/gi, " ")
+    .replace(/<br\\s*\\/?>/gi, "\\n")
+    .replace(/<\\/(p|div|section|article|h[1-6]|li)>/gi, "\\n")
+    .replace(/<tr[^>]*>/gi, "\\n")
+    .replace(/<\\/(td|th)>/gi, " | ")
+    .replace(/<[^>]+>/g, " ");
+  return content
+    .replace(/&nbsp;/gi, " ").replace(/&#160;/g, " ")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .split("\\n").map(line => line.replace(/[ \\t]+/g, " ").replace(/\\s*\\|\\s*/g, " | ").trim())
+    .filter(Boolean).join("\\n").slice(0, 14000);
+}
+
+function queryTerms(query) {
+  return String(query || "").toLowerCase().replace(/[^a-z0-9\\s]/g, " ")
+    .split(/\\s+/).filter(word => word.length > 3 && !/^(what|when|where|which|who|with|from|about|greatest|achievement|achievements|list|top|best|give|tell|show|does|have|that|this|their|there|into|your)$/i.test(word));
+}
+
 function decodeUrl(value) {
   try {
     const url = new URL(value, "https://duckduckgo.com");
@@ -122,18 +148,40 @@ function buildSearchQueries(question) {
 
 async function fetchResearchPage(url, query) {
   try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AutoAIResearch/1.0)", "Accept": "text/html" },
+    const parsedUrl = new URL(url);
+    if (!["http:", "https:"].includes(parsedUrl.protocol) ||
+        /^(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.)/i.test(parsedUrl.hostname) ||
+        parsedUrl.hostname.endsWith(".local")) return null;
+    const response = await fetch(parsedUrl.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; AutoAIResearch/1.0; +https://auto-ai-c8y.pages.dev)",
+        "Accept": "text/html,application/xhtml+xml,text/plain"
+      },
+      redirect: "follow",
       signal: AbortSignal.timeout(12000)
     });
     if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!/html|text|xml/i.test(contentType)) return null;
     const html = await response.text();
-    const title = stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || url);
+    if (html.length > 1800000) return null;
+    const title = stripHtml(html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] || url);
     const description = stripHtml(html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i)?.[1] || "");
-    const body = stripHtml(html.replace(/<nav[\s\S]*?<\/nav>/gi, " ").replace(/<footer[\s\S]*?<\/footer>/gi, " "));
-    if (!body || !/nick\s*mercs|nickmercs/i.test(title + " " + description + " " + body.slice(0, 16000))) return null;
-    const usefulText = (description + " " + body).replace(/\\s+/g, " ").trim();
-    return { title, url, snippet: usefulText.slice(0, 10000), query, full_text: true };
+    const mainMatch = html.match(/<(?:main|article)[^>]*>([\\s\\S]*?)<\\/(?:main|article)>/i);
+    const pageText = extractPageText(mainMatch?.[1] || html);
+    if (pageText.length < 180) return null;
+    const terms = queryTerms(query);
+    const searchable = (title + " " + description + " " + pageText.slice(0, 10000)).toLowerCase();
+    const matched = terms.filter(term => searchable.includes(term)).length;
+    const namedSubject = /nick\\s*mercs|nickmercs/i.test(query);
+    if (namedSubject && !/nick\\s*mercs|nickmercs/i.test(title + " " + description + " " + pageText.slice(0, 14000))) return null;
+    if (!namedSubject && terms.length >= 3 && matched < 2) return null;
+    return {
+      title, url: response.url || url,
+      snippet: [description, pageText].filter(Boolean).join("\\n").slice(0, 11000),
+      query, full_text: true,
+      relevance: terms.length ? Number((matched / Math.min(terms.length, 6)).toFixed(2)) : 1
+    };
   } catch { return null; }
 }
 
@@ -148,7 +196,7 @@ async function searchWeb(query) {
     return [...webResults, ...bingResults, ...wikiResults].map(item => ({ ...item, query: searchQuery }));
   }));
   const combined = batches.flat();
-  if (query.toLowerCase().includes("nickmercs") || query.toLowerCase().includes("nick mercs")) {
+  if (/nick\\s*mercs|nickmercs/i.test(query)) {
     const urls = [
       "https://liquipedia.net/fortnite/NICKMERCS/Results",
       "https://liquipedia.net/fortnite/NICKMERCS",
@@ -157,33 +205,43 @@ async function searchWeb(query) {
       "https://fortnite-esports.fandom.com/wiki/NICKMERCS/Tournament_Results",
       "https://cod-esports.fandom.com/wiki/NICKMERCS/Tournament_Results"
     ];
-    const direct = await Promise.all(urls.map(url => fetchResearchPage(url, "NICKMERCS verified tournament results and placements")));
+    const direct = await Promise.all(urls.map(url => fetchResearchPage(url, query)));
     combined.push(...direct.filter(Boolean));
   }
-  const subject = query.toLowerCase().includes("nickmercs") || query.toLowerCase().includes("nick mercs") ? "nickmercs" : null;
   const seen = new Set();
-  const relevant = combined.filter(item => {
-    const title = String(item.title || "");
-    const snippet = String(item.snippet || "");
-    if (subject && !(title + " " + snippet).toLowerCase().replaceAll(" ", "").includes("nickmercs")) return false;
-    const rawKey = String(item.url || "").split("#")[0];
-    const key = rawKey.endsWith("/") ? rawKey.slice(0, -1) : rawKey;
-    if (!(key.startsWith("https://") || key.startsWith("http://")) || seen.has(key)) return false;
+  const unique = combined.filter(item => {
+    let parsed;
+    try { parsed = new URL(item.url); } catch { return false; }
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const key = parsed.origin + parsed.pathname.replace(/\\/$/, "");
+    if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
   const score = item => {
     const text = (item.title + " " + item.snippet + " " + item.url).toLowerCase();
-    let points = 0;
-    if (/liquipedia|esports earnings|escharts|twitchtracker|tracker network|dot esports|dexerto/.test(text)) points += 5;
-    if (/tournament|championship|placement|winner|won|results|prize|earnings|record/.test(text)) points += 4;
+    let points = item.full_text ? 12 : 0;
+    if (/liquipedia|esports earnings|escharts|dot esports|dexerto|official|tournament results/.test(text)) points += 4;
+    if (/tournament|championship|placement|winner|won|results|prize|earnings|record/.test(text)) points += 3;
     if (/nickmercs|nick mercs/.test(text)) points += 4;
+    if (/poll|quick poll|sign in|create a free account|navigation|copyright/.test(text)) points -= 6;
     if (/hosted|organised|organized|presented/.test(text)) points -= 2;
-    if (text.includes("modern warfare ii") || text.includes("video game)")) points -= 3;
     if (/wikipedia/.test(item.url)) points -= 1;
     return points;
   };
-  return relevant.sort((a, b) => score(b) - score(a)).slice(0, 12);
+  const candidates = unique.sort((a, b) => score(b) - score(a)).slice(0, 10);
+  const pages = await Promise.all(candidates.slice(0, 8).map(async item =>
+    item.full_text ? item : (await fetchResearchPage(item.url, query)) || item
+  ));
+  const final = [];
+  const finalSeen = new Set();
+  for (const item of [...pages, ...candidates.slice(8)]) {
+    const key = String(item.url || "").split("#")[0].replace(/\\/$/, "");
+    if (!key || finalSeen.has(key)) continue;
+    finalSeen.add(key);
+    final.push(item);
+  }
+  return final.sort((a, b) => score(b) - score(a)).slice(0, 12);
 }
 
 function parseAnswer(result) {
@@ -354,10 +412,10 @@ RULES:
       confidence,
       coverage_note: String(answer.coverage_note || "Search extracts are not a full verification of every source.").slice(0, 1200),
       key_points: Array.isArray(answer.key_points) ? answer.key_points.slice(0, 8).map(item => String(item).slice(0, 400)) : [],
-      sources: sources.map((source, index) => ({ number: index + 1, title: source.title, url: source.url, extract: source.snippet, search_query: source.query || question })),
+      sources: sources.map((source, index) => ({ number: index + 1, title: source.title, url: source.url, extract: source.snippet, full_page_read: Boolean(source.full_text), search_query: source.query || question })),
       researched_at: new Date().toISOString(),
-      research_method: "Live web search extracts + Cloudflare Workers AI synthesis",
-      limitations: "Auto AI has read search-result extracts, not necessarily every full article. Check primary sources for important decisions."
+      research_method: "Multi-query web discovery + direct page retrieval and extraction + Cloudflare Workers AI synthesis",
+      limitations: "Some websites block automated retrieval or expose only partial text. Each source is labelled as a full-page extract or a search snippet; verify important claims against primary sources."
     });
   } catch (error) {
     return json({ success: false, error: error.message || "Research failed. Please try again." }, 500);
