@@ -1211,10 +1211,33 @@ $("#findStockFootage").onclick = async () => {
   const scenes = Array.isArray(script.scenes) && script.scenes.length
     ? script.scenes
     : [{ text: script.hook || item.title }, { text: script.voiceover || item.topic }];
+  // Give each scene the wider subject context as well as its own visual details.
+  // This avoids searching generic words like "the crowd celebrates" without the game,
+  // tournament, player or team that the whole video is actually about.
+  const contextParts = [
+    script.title,
+    item.title,
+    item.topic,
+    item.niche,
+    script.topic,
+    script.game,
+    script.tournament,
+    script.event
+  ].filter(value => typeof value === "string" && value.trim());
   const sceneQueries = scenes.slice(0, 6).map(scene => {
-    const raw = String(scene.visual || scene.text || "").trim();
-    const people = String(scene.person || scene.team || scene.event || "").trim();
-    return [people, raw].filter(Boolean).join(" ").split(/\s+/).slice(0, 12).join(" ");
+    const sceneParts = [
+      scene.game,
+      scene.player,
+      scene.person,
+      scene.team,
+      scene.event,
+      scene.tournament,
+      scene.visual,
+      scene.text
+    ].filter(value => typeof value === "string" && value.trim());
+    const combined = [...contextParts, ...sceneParts].join(" ");
+    const unique = [...new Set(combined.split(/\s+/).filter(Boolean))];
+    return unique.slice(0, 18).join(" ").slice(0, 100);
   }).filter(Boolean);
   if (!sceneQueries.length) {
     status.textContent = "This script has no scene details to search.";
