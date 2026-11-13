@@ -828,7 +828,7 @@ $("#askForm").onsubmit = async event => {
       }
     } catch {}
     displayAnswer = displayAnswer.replace(/\\\\n/g, "\\n").replace(/\\r/g, "");
-    displayAnswer = displayAnswer.replace(/\\*\\*(.*?)\\*\\*/g, "$1");
+    displayAnswer = displayAnswer.replace(/\*\*(.*?)\*\*/g, "$1");
     answer.textContent = displayAnswer;
     const note = document.createElement("p");
     note.className = "muted";
