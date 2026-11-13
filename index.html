@@ -117,7 +117,7 @@ dialog::backdrop {background:rgba(0,0,0,.76);backdrop-filter:blur(5px)}
 #modalConnectionDetails:empty {display:none}
 #modalConnections {max-height:42dvh;overflow:auto}
 #modalConnections .connect-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
-#modalConnections button {white-space:normal}
+#modalConnections button {white-space:normal;touch-action:manipulation;cursor:pointer;position:relative;z-index:2}
 #modalConnections .connection-row {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
 #modalConnections .connection-row span {overflow-wrap:anywhere}
 #modalConnections .connection-row button {flex:0 0 auto;min-height:40px}
@@ -522,6 +522,23 @@ let editingId = null;
 let busy = false;
 
 const $ = selector => document.querySelector(selector);
+
+// Bind account connection buttons immediately and through delegation. This keeps
+// the controls working even if a later dashboard initialiser fails.
+document.addEventListener("click", event => {
+  const button = event.target.closest("#modalConnectYoutube, #modalConnectTiktok");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const platform = button.id === "modalConnectYoutube" ? "youtube" : "tiktok";
+  const status = document.querySelector("#modalConnectionStatus");
+  if (status) status.textContent = "Connect button pressed. Preparing " + (platform === "youtube" ? "Google / YouTube" : "TikTok") + " authorisation...";
+  if (typeof connectSocialFromModal === "function") {
+    connectSocialFromModal(platform);
+  } else if (status) {
+    status.textContent = "The connection handler did not load. Refresh Auto AI and try again.";
+  }
+}, true);
 
 function showMessage(message, error = false) {
   const box = $("#message");
@@ -1996,8 +2013,7 @@ async function connectSocialFromModal(platform) {
     button.disabled = false;
   }
 }
-$("#modalConnectYoutube").onclick = () => connectSocialFromModal("youtube");
-$("#modalConnectTiktok").onclick = () => connectSocialFromModal("tiktok");
+// Connection buttons are handled by the early delegated listener above.
 $("#modalRefreshConnections").onclick = refreshModalConnections;
 
 const socialCallbackParams = new URLSearchParams(location.search);
