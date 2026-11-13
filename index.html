@@ -204,7 +204,7 @@ label {display:grid;gap:6px;color:var(--muted)}
 
 
 
-<section class="panel" style="margin-top:24px">
+<section class="panel" id="videoCreatorPanel" style="margin-top:24px">
   <div class="row"><h2>Video Creator</h2><span class="tag">On-device test</span></div>
   <p>Turn a saved script into a short vertical video draft on this device. This first test renders animated backgrounds and scene captions; voiceover, stock footage and cloud saving are not connected yet.</p>
   <label>Saved script
@@ -857,6 +857,57 @@ $("#askForm").onsubmit = async event => {
     footer.className = "muted";
     footer.textContent = "Researched " + new Date(data.researched_at).toLocaleString() + ". " + data.limitations;
     result.append(heading, confidence, answer, note, sourceHeading, sourceList, footer);
+
+    const clipAction = document.createElement("div");
+    clipAction.style.marginTop = "18px";
+    const createClip = document.createElement("button");
+    createClip.type = "button";
+    createClip.textContent = "Create Video Clip from This Research";
+    const clipStatus = document.createElement("p");
+    clipStatus.className = "muted";
+    clipStatus.style.marginTop = "8px";
+    createClip.onclick = async () => {
+      createClip.disabled = true;
+      createClip.textContent = "Creating video script...";
+      clipStatus.textContent = "Turning the research into a short script and keeping its source links...";
+      try {
+        const generated = await apiRequest("/api/research-video", {
+          method: "POST",
+          body: JSON.stringify({
+            question: data.question || question,
+            answer: data.answer,
+            confidence: data.confidence,
+            sources: data.sources || []
+          })
+        });
+        const saved = await apiRequest("/api/scripts", {
+          method: "POST",
+          body: JSON.stringify({
+            title: generated.script.title,
+            niche: "Ask Anything research",
+            topic: data.question || question,
+            script: generated.script
+          })
+        });
+        await loadScriptLibrary();
+        const renderSelect = $("#renderScript");
+        if (renderSelect && saved.id) renderSelect.value = saved.id;
+        clipStatus.textContent = "Video script saved to your Video Library. The current renderer creates a silent visual draft; narration, generated footage and music are not connected yet.";
+        const creator = $("#videoCreatorPanel");
+        if (creator) {
+          creator.scrollIntoView({ behavior: "smooth", block: "start" });
+          $("#renderStatus").style.display = "block";
+          $("#renderStatus").textContent = "Your research-based script is selected. Tap Create vertical video draft to render it on this iPhone.";
+        }
+      } catch (error) {
+        clipStatus.textContent = "Could not create the video clip: " + error.message;
+      } finally {
+        createClip.disabled = false;
+        createClip.textContent = "Create Video Clip from This Research";
+      }
+    };
+    clipAction.append(createClip, clipStatus);
+    result.append(clipAction);
   } catch (error) {
     result.textContent = "Could not research this question: " + error.message;
   } finally {
