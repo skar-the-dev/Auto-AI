@@ -244,8 +244,8 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 
 
 <section class="panel" style="margin-top:24px" id="youtubePanel">
-  <div class="row"><h2>YouTube Connection</h2><span class="tag">OAuth setup</span></div>
-  <p>Connect a YouTube channel, then upload a finished video or authorise Auto AI to upload a newly rendered video using your selected visibility and schedule.</p>
+  <div class="row"><h2>Social Connections</h2><span class="tag">YouTube + TikTok</span></div>
+  <p>Manage both social connections from one place. Choose one Auto AI account and connect YouTube or TikTok below.</p>
   <label>Auto AI account
     <select id="youtubeAccount"><option value="">Choose an account</option></select>
   </label>
@@ -293,20 +293,21 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
       <div id="youtubeUploadHistory" class="muted" style="margin-top:10px">Enter your admin key and refresh to load upload history.</div>
     </div>
   </div>
-</section>
-
-<section class="panel" style="margin-top:18px" id="tiktokPanel">
+<div class="subpanel" id="tiktokPanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
   <div class="row"><h2>TikTok Connection</h2><span class="tag">OAuth setup</span></div>
   <p>Connect your TikTok profile securely to an Auto AI account. This links the account and stores authorisation; automatic posting is a separate step and requires TikTok Content Posting approval.</p>
   <label>Auto AI account
-    <select id="tiktokAccount"><option value="">Choose an account</option></select>
+    <span class="muted">Uses the Auto AI account selected above.</span>
   </label>
   <div class="actions">
     <button type="button" id="tiktokConnect">Connect TikTok</button>
     <button type="button" class="secondary" id="tiktokRefresh">Refresh connection status</button>
   </div>
   <div id="tiktokStatus" class="notice" aria-live="polite">TikTok is not connected yet. Enter your Auto AI admin key in the YouTube Connection section first.</div>
+</div>
 </section>
+
+
 
 <section class="panel" id="sourceManager" style="margin-top:18px">
   <div class="row"><h2>Source & Copyright Manager</h2><span class="tag">Multi-platform</span></div>
@@ -597,13 +598,6 @@ function render() {
     youtubeSelect.replaceChildren(new Option("Choose an account", ""));
     accounts.forEach(account => youtubeSelect.add(new Option(account.name + " — " + account.niche, account.id)));
     if (accounts.some(account => account.id === previousYoutube)) youtubeSelect.value = previousYoutube;
-  }
-  const tiktokSelect = $("#tiktokAccount");
-  if (tiktokSelect) {
-    const previousTikTok = tiktokSelect.value;
-    tiktokSelect.replaceChildren(new Option("Choose an account", ""));
-    accounts.forEach(account => tiktokSelect.add(new Option(account.name + " — " + account.niche, account.id)));
-    if (accounts.some(account => account.id === previousTikTok)) tiktokSelect.value = previousTikTok;
   }
 
   $("#active").textContent =
@@ -1688,6 +1682,26 @@ async function loadClipSources() {
       detail.textContent = source.platform.toUpperCase() + " · " + (source.creator || "Creator not recorded") + " · Rights: " + source.rights_status + " · Review: " + (source.review_status || "Pending review");
       const link = document.createElement("a"); link.href = source.url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Open original source";
       const note = document.createElement("p"); note.className = "muted"; note.textContent = source.rights_note || "No licence or permission evidence recorded.";
+      const mediaLabel = document.createElement("label"); mediaLabel.textContent = source.media_key ? "Imported footage is stored in your private clip library." : "Import a permitted download or a clip file you have the right to use.";
+      const mediaFile = document.createElement("input"); mediaFile.type = "file"; mediaFile.accept = "video/mp4,video/webm,video/quicktime,video/x-m4v"; mediaLabel.append(mediaFile);
+      const importButton = makeButton(source.media_key ? "Replace imported footage" : "Import clip file", "secondary");
+      importButton.onclick = async () => {
+        const file = mediaFile.files && mediaFile.files[0];
+        if (!file) { status.textContent = "Choose a video file first."; return; }
+        if (file.size > 90 * 1024 * 1024) { status.textContent = "Choose a video under 90 MB for this import route."; return; }
+        importButton.disabled = true; status.textContent = "Importing clip into private storage...";
+        try {
+          const form = new FormData(); form.append("script_id", scriptId); form.append("source_id", source.id); form.append("file", file);
+          const response = await fetch("/api/clips/import", { method:"POST", headers:{"x-auto-ai-admin-key":sourceAdminKey()}, body:form });
+          const result = await youtubeApiData(response);
+          status.textContent = "Clip imported to private storage (" + Math.round(file.size/1024/1024*10)/10 + " MB).";
+          await loadClipSources();
+        } catch(error) { status.textContent = "Clip import failed: " + error.message; }
+        finally { importButton.disabled = false; }
+      };
+      const mediaInfo = document.createElement("p"); mediaInfo.className = "muted";
+      mediaInfo.textContent = source.media_key ? "Stored file: " + (source.media_filename || "Imported clip") + " · " + Math.round((source.media_size || 0)/1024/1024*10)/10 + " MB" : "No video file imported yet.";
+
       const reviewNote = document.createElement("textarea"); reviewNote.rows = 2; reviewNote.maxLength = 1000; reviewNote.placeholder = "Your review note (required to approve/reject)";
       reviewNote.value = source.review_note || "";
       const saveReview = async decision => {
@@ -1706,7 +1720,7 @@ async function loadClipSources() {
       const remove = makeButton("Remove candidate", "danger");
       remove.onclick = async () => { if (!confirm("Remove this candidate and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method:"DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove candidate: " + error.message; } };
       const actions = document.createElement("div"); actions.className = "actions"; actions.append(approve,reject,reset,remove);
-      card.append(heading,detail,link,note,reviewNote,actions); target.append(card);
+      card.append(heading,detail,link,note,mediaLabel,importButton,mediaInfo,reviewNote,actions); target.append(card);
     });
     return sources;
   } catch (error) { status.textContent = "Could not load candidates: " + error.message; return []; }
@@ -1755,8 +1769,8 @@ async function uploadYouTubeVideo(fileOverride = null, suggestedTitle = "") {
   if (selectedSourceScript) {
     const sourceData = await sourceApi("/api/sources?script_id=" + encodeURIComponent(selectedSourceScript));
     const sources = sourceData.sources || [];
-    const unreviewed = sources.filter(source => source.review_status !== "Approved");
-    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) are not approved in Final Clip Review. Review each candidate and record your decision before uploading.");
+    const unreviewed = sources.filter(source => source.review_status !== "Approved" || !source.media_key);
+    if (unreviewed.length) throw new Error(unreviewed.length + " source candidate(s) are not approved or do not have an imported video file. Review and import each candidate before uploading.");
     const credits = formatSourceCredits(sources).slice(-4800);
     description = description.slice(0, Math.max(0, 5000 - credits.length)) + credits;
     $("#youtubeVideoDescription").value = description;
@@ -1851,7 +1865,7 @@ async function refreshTikTokStatus() {
 }
 $("#tiktokConnect").onclick = async () => {
   const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
-  const accountId = $("#tiktokAccount").value;
+  const accountId = $("#youtubeAccount").value;
   const target = $("#tiktokStatus");
   if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
   if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
