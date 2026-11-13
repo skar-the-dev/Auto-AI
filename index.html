@@ -971,9 +971,9 @@ $("#batchForm").onsubmit = async event => {
     if (clarification.needs_clarification) {
       result.replaceChildren();
       const heading = document.createElement("h3");
-      heading.textContent = "Do you mean...";
+      heading.textContent = "Quick clarification";
       const prompt = document.createElement("p");
-      prompt.textContent = clarification.clarifying_question;
+      prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?";
       prompt.style.fontWeight = "700";
       const options = document.createElement("div");
       options.style.display = "grid";
@@ -1003,7 +1003,7 @@ $("#batchForm").onsubmit = async event => {
         options.append(customWrap);
       });
       result.append(heading, prompt, options);
-      button.textContent = "Waiting for your choice...";
+      button.style.display = "none";
       selectedMeaning = await chosen;
     }
     button.textContent = "Creating drafts...";
