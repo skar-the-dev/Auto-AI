@@ -3,6 +3,7 @@ import { json, requireAdmin, tiktokRedirectUri, ensureTikTokTables, encryptSecre
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const appUrl = new URL("/", request.url);
+  let returnAccountId = "";
   try {
     if (!env.DB) throw new Error("Database binding DB is missing.");
     if (url.searchParams.has("error")) throw new Error(url.searchParams.get("error_description") || "TikTok authorisation was cancelled or denied.");
@@ -11,6 +12,7 @@ export async function onRequestGet({ request, env }) {
     if (!code || !state) throw new Error("TikTok did not return a valid authorisation code.");
     await ensureTikTokTables(env.DB);
     const pending = await env.DB.prepare("SELECT account_id, expires_at FROM tiktok_oauth_states WHERE state = ?").bind(state).first();
+    returnAccountId = pending?.account_id || "";
     await env.DB.prepare("DELETE FROM tiktok_oauth_states WHERE state = ?").bind(state).run();
     if (!pending || Number(pending.expires_at) < Math.floor(Date.now()/1000)) throw new Error("This TikTok connection request expired. Please try again.");
     if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_CLIENT_SECRET || !env.TOKEN_ENCRYPTION_KEY) throw new Error("TikTok OAuth secrets are not configured in Cloudflare.");
@@ -48,9 +50,11 @@ export async function onRequestGet({ request, env }) {
         accessEncrypted, refreshEncrypted, now+Number(tokens.expires_in||7200),
         now+Number(tokens.refresh_expires_in||15552000), tokens.scope || "").run();
     appUrl.searchParams.set("tiktok", "connected");
+    appUrl.searchParams.set("account", pending.account_id);
     return Response.redirect(appUrl.toString(), 302);
   } catch (error) {
     appUrl.searchParams.set("tiktok", "error");
+    if (returnAccountId) appUrl.searchParams.set("account", returnAccountId);
     appUrl.searchParams.set("message", String(error.message || "TikTok connection failed.").slice(0,180));
     return Response.redirect(appUrl.toString(), 302);
   }
