@@ -347,7 +347,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <div>
       <span class="eyebrow">YOUR CONTENT WORKFLOW</span>
       <h2>Content Engine</h2>
-      <p class="batch-intro">Create content for your channels. Choose your niche, describe the topic and let Auto AI generate script drafts.</p>
+      <p class="batch-intro">Choose your niche and let Auto AI find a topic for you, or enter your own idea. Then create your script drafts.</p>
     </div>
     <span class="tag">Up to 6 videos</span>
   </div>
@@ -1175,7 +1175,7 @@ $("#batchForm").onsubmit = async event => {
   const batchSettings = {
     account_id: $("#batchAccount").value,
     count: Number($("#batchCount").value),
-    niche: $("#batchNiche").value === "__account__" ? (accounts.find(account => account.id === $("#batchAccount").value)?.niche || "") : $("#batchNiche").value,
+    niche,
     count: Number($("#batchCount").value)
   };
   button.disabled = true;
@@ -1238,7 +1238,7 @@ $("#batchForm").onsubmit = async event => {
         clarification: clarification.needs_clarification ? selectedMeaning : ""
       })
     });
-    result.textContent = data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
+    topic = data.topic || topic;\n    result.textContent = data.topic_discovery ? "Auto AI chose: " + topic + ". " + data.topic_discovery.reason + " " + data.message : data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
     await loadScriptLibrary();
     renderBatchDraftReview(data.created || []);
   } catch (error) {
