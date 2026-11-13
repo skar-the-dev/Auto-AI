@@ -1253,6 +1253,16 @@ if ("serviceWorker" in navigator) {
 }
 
 
+async function youtubeApiData(response) {
+  const raw = await response.text();
+  let data;
+  try { data = raw ? JSON.parse(raw) : {}; }
+  catch { throw new Error("YouTube API returned non-JSON (HTTP " + response.status + "): " + raw.slice(0, 220)); }
+  if (!response.ok || !data.success) {
+    throw new Error((data.error || data.message || "YouTube request failed") + " (HTTP " + response.status + ")");
+  }
+  return data;
+}
 function youtubeAdminHeaders() {
   return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
 }
@@ -1262,8 +1272,7 @@ async function refreshYoutubeStatus() {
   if (!key) { target.textContent = "Enter the admin access key to check connected channels."; return; }
   try {
     const response = await fetch("/api/youtube/status", { headers: { "x-auto-ai-admin-key": key } });
-    const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || "Could not load connection status.");
+    const data = await youtubeApiData(response);
     sessionStorage.setItem("autoAiAdminKey", key);
     target.replaceChildren();
     if (!data.connections.length) { target.textContent = "No YouTube channels connected yet."; return; }
@@ -1277,8 +1286,8 @@ async function refreshYoutubeStatus() {
       disconnect.onclick = async () => {
         if (!confirm("Disconnect this YouTube channel from Auto AI?")) return;
         const result = await fetch("/api/youtube/disconnect", { method: "POST", headers: youtubeAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
-        const payload = await result.json();
-        if (!result.ok || !payload.success) { target.textContent = payload.error || "Disconnect failed."; return; }
+        try { await youtubeApiData(result); }
+        catch (error) { target.textContent = error.message; return; }
         refreshYoutubeStatus();
       };
       row.append(label, disconnect);
@@ -1301,8 +1310,7 @@ $("#youtubeConnect").onclick = async () => {
       headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
       body: JSON.stringify({ account_id: accountId })
     });
-    const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || "Could not start YouTube connection.");
+    const data = await youtubeApiData(response);
     sessionStorage.setItem("autoAiAdminKey", key);
     location.href = data.authorization_url;
   } catch (error) { target.textContent = error.message; button.disabled = false; }
