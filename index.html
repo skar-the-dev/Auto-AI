@@ -377,10 +377,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
       </select>
       <span class="field-hint">Choose a category or use the account's saved niche.</span>
     </label>
-    <label><span class="field-title">3. What topic should the videos cover?</span>
-      <input id="batchTopic" required maxlength="180" placeholder="e.g. The most unbelievable moments in football">
-      <span class="field-hint">Be as broad or specific as you like. Auto AI will understand the subject.</span>
-    </label>
+    <label><span class="field-title">3. Topic (optional)</span>\n      <input id="batchTopic" maxlength="180" placeholder="Leave blank and Auto AI will choose a topic">\n      <span class="field-hint">Leave this empty and Auto AI will discover a topic based on your selected niche, avoiding recently used topics where possible.</span></label>
     <label><span class="field-title">4. How many videos?</span>
       <select id="batchCount">
         <option value="1">1 video</option><option value="2">2 videos</option>
