@@ -19,27 +19,27 @@ function stripHtml(value) {
 
 function extractPageText(html) {
   let content = String(html || "")
-    .replace(/<!--[\\s\\S]*?-->/g, " ")
-    .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
-    .replace(/<(nav|footer|header|aside|form|noscript|svg)[^>]*>[\\s\\S]*?<\\/\\1>/gi, " ")
-    .replace(/<br\\s*\\/?>/gi, "\\n")
-    .replace(/<\\/(p|div|section|article|h[1-6]|li)>/gi, "\\n")
-    .replace(/<tr[^>]*>/gi, "\\n")
-    .replace(/<\\/(td|th)>/gi, " | ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<(nav|footer|header|aside|form|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|section|article|h[1-6]|li)>/gi, "\n")
+    .replace(/<tr[^>]*>/gi, "\n")
+    .replace(/<\/(td|th)>/gi, " | ")
     .replace(/<[^>]+>/g, " ");
   return content
     .replace(/&nbsp;/gi, " ").replace(/&#160;/g, " ")
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"')
     .replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">").replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .split("\\n").map(line => line.replace(/[ \\t]+/g, " ").replace(/\\s*\\|\\s*/g, " | ").trim())
-    .filter(Boolean).join("\\n").slice(0, 14000);
+    .replace(/&gt;/g, ">").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .split("\n").map(line => line.replace(/[ \t]+/g, " ").replace(/\s*\|\s*/g, " | ").trim())
+    .filter(Boolean).join("\n").slice(0, 14000);
 }
 
 function queryTerms(query) {
-  return String(query || "").toLowerCase().replace(/[^a-z0-9\\s]/g, " ")
-    .split(/\\s+/).filter(word => word.length > 3 && !/^(what|when|where|which|who|with|from|about|greatest|achievement|achievements|list|top|best|give|tell|show|does|have|that|this|their|there|into|your)$/i.test(word));
+  return String(query || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/).filter(word => word.length > 3 && !/^(what|when|where|which|who|with|from|about|greatest|achievement|achievements|list|top|best|give|tell|show|does|have|that|this|their|there|into|your)$/i.test(word));
 }
 
 function decodeUrl(value) {
@@ -150,7 +150,7 @@ async function fetchResearchPage(url, query) {
   try {
     const parsedUrl = new URL(url);
     if (!["http:", "https:"].includes(parsedUrl.protocol) ||
-        /^(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.)/i.test(parsedUrl.hostname) ||
+        /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/i.test(parsedUrl.hostname) ||
         parsedUrl.hostname.endsWith(".local")) return null;
     const response = await fetch(parsedUrl.toString(), {
       headers: {
@@ -165,20 +165,20 @@ async function fetchResearchPage(url, query) {
     if (!/html|text|xml/i.test(contentType)) return null;
     const html = await response.text();
     if (html.length > 1800000) return null;
-    const title = stripHtml(html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] || url);
+    const title = stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || url);
     const description = stripHtml(html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i)?.[1] || "");
-    const mainMatch = html.match(/<(?:main|article)[^>]*>([\\s\\S]*?)<\\/(?:main|article)>/i);
+    const mainMatch = html.match(/<(?:main|article)[^>]*>([\s\S]*?)<\/(?:main|article)>/i);
     const pageText = extractPageText(mainMatch?.[1] || html);
     if (pageText.length < 180) return null;
     const terms = queryTerms(query);
     const searchable = (title + " " + description + " " + pageText.slice(0, 10000)).toLowerCase();
     const matched = terms.filter(term => searchable.includes(term)).length;
-    const namedSubject = /nick\\s*mercs|nickmercs/i.test(query);
-    if (namedSubject && !/nick\\s*mercs|nickmercs/i.test(title + " " + description + " " + pageText.slice(0, 14000))) return null;
+    const namedSubject = /nick\s*mercs|nickmercs/i.test(query);
+    if (namedSubject && !/nick\s*mercs|nickmercs/i.test(title + " " + description + " " + pageText.slice(0, 14000))) return null;
     if (!namedSubject && terms.length >= 3 && matched < 2) return null;
     return {
       title, url: response.url || url,
-      snippet: [description, pageText].filter(Boolean).join("\\n").slice(0, 11000),
+      snippet: [description, pageText].filter(Boolean).join("\n").slice(0, 11000),
       query, full_text: true,
       relevance: terms.length ? Number((matched / Math.min(terms.length, 6)).toFixed(2)) : 1
     };
@@ -196,7 +196,7 @@ async function searchWeb(query) {
     return [...webResults, ...bingResults, ...wikiResults].map(item => ({ ...item, query: searchQuery }));
   }));
   const combined = batches.flat();
-  if (/nick\\s*mercs|nickmercs/i.test(query)) {
+  if (/nick\s*mercs|nickmercs/i.test(query)) {
     const urls = [
       "https://liquipedia.net/fortnite/NICKMERCS/Results",
       "https://liquipedia.net/fortnite/NICKMERCS",
@@ -213,7 +213,7 @@ async function searchWeb(query) {
     let parsed;
     try { parsed = new URL(item.url); } catch { return false; }
     if (!["http:", "https:"].includes(parsed.protocol)) return false;
-    const key = parsed.origin + parsed.pathname.replace(/\\/$/, "");
+    const key = parsed.origin + parsed.pathname.replace(/\/$/, "");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -236,7 +236,7 @@ async function searchWeb(query) {
   const final = [];
   const finalSeen = new Set();
   for (const item of [...pages, ...candidates.slice(8)]) {
-    const key = String(item.url || "").split("#")[0].replace(/\\/$/, "");
+    const key = String(item.url || "").split("#")[0].replace(/\/$/, "");
     if (!key || finalSeen.has(key)) continue;
     finalSeen.add(key);
     final.push(item);
