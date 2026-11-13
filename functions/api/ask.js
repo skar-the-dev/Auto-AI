@@ -316,6 +316,35 @@ RULES:
     if (!answer.answer || typeof answer.answer !== "string") {
       throw new Error("The research model returned an incomplete answer.");
     }
+    // Quality gate: reject obviously duplicated list output rather than showing fabricated research.
+    const answerText = answer.answer;
+    const numberedEntries = answerText.match(/^\\s*\\d+[.)]\\s+/gm) || [];
+    const normalisedEntries = answerText.split(/\\n+/)
+      .map(line => line.replace(/^\\s*\\d+[.)]\\s+/, "").replace(/\\*\\*/g, "").trim().toLowerCase())
+      .filter(line => line.length > 35);
+    const duplicateCount = normalisedEntries.length - new Set(normalisedEntries).size;
+    if (numberedEntries.length > 12 || duplicateCount >= 2) {
+      return json({
+        success: false,
+        error: "The research model produced duplicated or inconsistent list entries. Auto AI has blocked this answer rather than presenting unverified claims. Please try again later."
+      }, 502);
+    }
+    // A result is not a verified placement just because a model labels it first place.
+    // For NICKMERCS, fail closed if the answer claims multiple World Cup qualifier wins
+    // while the supplied tournament table does not show those rows as first place.
+    if (/nick\\s*mercs|nickmercs/i.test(question) && /world cup|wc 2019/i.test(answerText)) {
+      const claimsWorldCupWins = (answerText.match(/(?:1st|first)\\s*(?:place|in|at)?[^\\n]*(?:world cup|wc 2019)|(?:world cup|wc 2019)[^\\n]*(?:1st|first)\\s*(?:place|in|at)?/gi) || []).length;
+      const fortniteTable = sources.find(source => /fortnite esports wiki/i.test(source.title));
+      const tableText = String(fortniteTable?.snippet || "");
+      const tableHasExplicitFirsts = /\\bPl\\s+PR Points[\\s\\S]{0,500}\\b1\\b/.test(tableText);
+      if (claimsWorldCupWins >= 2 && !tableHasExplicitFirsts) {
+        return json({
+          success: false,
+          error: "Auto AI could not verify the claimed World Cup wins against the tournament-results table, so it has blocked the answer. The source extract needs better row-by-row verification."
+        }, 502);
+      }
+    }
+
     const confidence = ["high", "medium", "low"].includes(answer.confidence) ? answer.confidence : "low";
     return json({
       success: true,
