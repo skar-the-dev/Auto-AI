@@ -68,6 +68,10 @@ button.danger {background:#462334;color:#ffdce5}
 .muted {color:var(--muted);font-size:13px}
 .toolbar {display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}
 .account {display:flex;flex-direction:column;gap:12px}
+.queue-card {position:relative;padding-top:46px}
+.queue-delete {position:absolute;top:10px;right:10px;width:32px;min-height:32px;height:32px;padding:0;border-radius:50%;font-size:20px;line-height:1;background:rgba(91,115,157,.2);border:1px solid rgba(160,180,220,.25);color:#dce6ff;box-shadow:none!important}
+.queue-delete:hover {background:#542b40;color:#fff}
+
 .tag {
   display:inline-block;background:#202d47;
   border-radius:20px;padding:5px 9px;
@@ -750,7 +754,14 @@ async function loadProductionQueue() {
 
     jobs.forEach(job => {
       const card = document.createElement("article");
-      card.className = "account";
+      card.className = "account queue-card";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "queue-delete";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Remove " + (job.title || "saved script") + " from production progress");
+      remove.title = "Remove from production progress";
+      remove.onclick = () => removeQueuedJob(job);
       const title = document.createElement("h3");
       title.textContent = job.title || "Saved script";
       const detail = document.createElement("p");
@@ -760,11 +771,23 @@ async function loadProductionQueue() {
       const note = document.createElement("p");
       note.className = "muted";
       note.textContent = "Waiting for the video-rendering worker. No video has been rendered yet.";
-      card.append(title, detail, status, note);
+      card.append(remove, title, detail, status, note);
       container.append(card);
     });
   } catch (error) {
     container.textContent = "Could not load production progress: " + error.message;
+  }
+}
+
+async function removeQueuedJob(job) {
+  const title = job.title || "this saved script";
+  if (!window.confirm("Remove “" + title + "” from Production Progress? The saved script will remain in Video Library.")) return;
+  try {
+    await apiRequest("/api/jobs?id=" + encodeURIComponent(job.id), { method: "DELETE" });
+    showMessage("Removed from Production Progress. The saved script is still in Video Library.");
+    await loadProductionQueue();
+  } catch (error) {
+    showMessage("Could not remove queue item: " + error.message, true);
   }
 }
 
