@@ -321,6 +321,12 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <button type="button" class="secondary" data-source-search="google">Search Google</button>
   </div>
   <p class="muted">Search opens the platform's own results. Add any promising result below, even if its rights are unknown. These links are saved as candidates; they are not downloaded automatically.</p>
+  <div class="actions" style="margin-top:10px">
+    <button type="button" id="autoFindClips">Find & collect clips automatically</button>
+  </div>
+  <div id="autoFindStatus" class="notice" aria-live="polite">Choose a saved script and press Find & collect clips. Auto AI will search the connected YouTube channel's permitted Creative Commons results and save matching candidates automatically.</div>
+  <div id="autoFindResults" class="grid"></div>
+  <p class="muted">Automatic discovery can collect source details and authorised previews. It cannot download YouTube/TikTok audiovisual files through their standard APIs. TikTok's Display API lists videos from an authorised creator account; Twitch download links require the relevant channel/editor authorisation.</p>
   <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:12px">
     <h3>Add a source you found</h3>
     <label>Platform<select id="sourcePlatform"><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="twitch">Twitch</option><option value="google">Google / website</option><option value="other">Other</option></select></label>
@@ -1743,6 +1749,40 @@ async function loadClipSources() {
     return sources;
   } catch (error) { status.textContent = "Could not load candidates: " + error.message; return []; }
 }
+async function findAndCollectClips() {
+  const scriptId=$("#sourceScript").value, script=savedScripts.find(item=>item.id===scriptId);
+  const status=$("#autoFindStatus"), results=$("#autoFindResults"), button=$("#autoFindClips");
+  if(!scriptId || !script) { status.textContent="Choose a saved script first."; return; }
+  if(!sourceAdminKey()) { status.textContent="Enter your Auto AI admin key in the Social Connections section."; return; }
+  const query=($("#sourceSearchQuery").value.trim() || script.topic || script.title || "").slice(0,100);
+  if(query.length<2) { status.textContent="Add a topic to search for."; return; }
+  button.disabled=true; results.replaceChildren(); status.textContent="Searching YouTube for relevant Creative Commons-labelled videos...";
+  try {
+    const response=await fetch("/api/youtube-footage?q="+encodeURIComponent(query));
+    const data=await youtubeApiData(response);
+    let saved=0;
+    for(const video of (data.videos||[])) {
+      try {
+        await sourceApi("/api/sources",{method:"POST",body:JSON.stringify({
+          script_id:scriptId,platform:"youtube",url:video.watchUrl,creator:video.channel,
+          title:video.title,rights_status:"Creative Commons",
+          rights_note:"YouTube search returned this item with the Creative Commons filter. Verify the individual video's licence and terms before reuse. Discovery result only; no media file downloaded."
+        })});
+        saved++;
+        const card=document.createElement("article"); card.className="account";
+        const title=document.createElement("strong"); title.textContent=video.title;
+        const creator=document.createElement("p"); creator.className="muted"; creator.textContent=video.channel+" · Creative Commons search filter · Pending your review";
+        const link=document.createElement("a"); link.href=video.watchUrl; link.target="_blank"; link.rel="noopener"; link.textContent="Open original video";
+        const preview=document.createElement("iframe"); preview.src=video.embedUrl; preview.title=video.title; preview.loading="lazy"; preview.allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"; preview.allowFullscreen=true; preview.style.width="100%"; preview.style.aspectRatio="16/9"; preview.style.border="0"; preview.style.borderRadius="12px";
+        card.append(title,creator,preview,link); results.append(card);
+      } catch(error) { /* keep collecting other results */ }
+    }
+    status.textContent=saved+" candidate(s) automatically saved for your review. These are previews/source records, not downloaded video files.";
+    await loadClipSources();
+  } catch(error) { status.textContent="Automatic search failed: "+error.message; }
+  finally { button.disabled=false; }
+}
+$("#autoFindClips").onclick=findAndCollectClips;
 $("#sourceScript").onchange = loadClipSources;
 document.querySelectorAll("[data-source-search]").forEach(button => { button.onclick = () => {
   const query = $("#sourceSearchQuery").value.trim() || (savedScripts.find(item => item.id === $("#sourceScript").value)?.topic || "");
