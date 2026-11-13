@@ -113,7 +113,18 @@ dialog::backdrop {background:rgba(0,0,0,.76);backdrop-filter:blur(5px)}
 #modalConnections[hidden] {display:none}
 #modalConnections .connect-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}
 #modalConnections button {min-height:48px}
-#modalConnectionStatus {margin:0}
+#modalConnectionStatus,#modalConnectionDetails {margin:0;overflow-wrap:anywhere}
+#modalConnectionDetails:empty {display:none}
+#modalConnections {max-height:42dvh;overflow:auto}
+#modalConnections .connect-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+#modalConnections button {white-space:normal}
+#modalConnections .connection-row {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
+#modalConnections .connection-row span {overflow-wrap:anywhere}
+#modalConnections .connection-row button {flex:0 0 auto;min-height:40px}
+@media(max-width:420px) {
+  #modalConnections .connect-grid {grid-template-columns:1fr}
+  #modalConnections .connection-row {align-items:flex-start;flex-direction:column}
+}
 @media(max-width:420px) {
   #modal .checks {grid-template-columns:1fr}
   #modal .actions {grid-template-columns:1fr}
@@ -409,8 +420,6 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 <div hidden aria-hidden="true">
   <select id="youtubeAccount"><option value="">Choose an account</option></select>
   <input id="youtubeAdminKey" type="password">
-  <button id="youtubeConnect" type="button"></button><button id="youtubeRefresh" type="button"></button>
-  <div id="youtubeStatus"></div><button id="tiktokConnect" type="button"></button><button id="tiktokRefresh" type="button"></button><div id="tiktokStatus"></div>
 </div>
 <section class="panel" style="margin-top:24px" id="youtubeUploadPanel">
   <div class="subpanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
@@ -495,6 +504,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
         <button type="button" id="modalConnectTiktok" class="secondary">Connect TikTok</button>
       </div>
       <div id="modalConnectionStatus" class="notice" aria-live="polite">Save the account, then connect YouTube and/or TikTok.</div>
+      <div id="modalConnectionDetails" class="notice" aria-live="polite"></div>
       <button type="button" class="secondary" id="modalRefreshConnections">Refresh connection status</button>
       <button type="button" class="secondary" id="modalDone">Done</button>
     </section>
@@ -569,9 +579,15 @@ async function loadAccounts() {
 
     render();
     showMessage("Your channels are loaded from Cloudflare.");
-    if (sessionStorage.getItem("autoAiAdminKey") && youtubeParams.get("youtube") !== "error") {
-      refreshYoutubeStatus();
-      refreshTikTokStatus();
+    const reopenId = sessionStorage.getItem("autoAiOpenAccountAfterOAuth");
+    if (reopenId && accounts.some(account => account.id === reopenId)) {
+      sessionStorage.removeItem("autoAiOpenAccountAfterOAuth");
+      openForm(reopenId);
+      const oauthError = sessionStorage.getItem("autoAiOAuthError");
+      const oauthSuccess = sessionStorage.getItem("autoAiOAuthSuccess");
+      if (oauthError) { $("#modalConnectionStatus").textContent = oauthError; sessionStorage.removeItem("autoAiOAuthError"); }
+      else if (oauthSuccess) { $("#modalConnectionStatus").textContent = oauthSuccess; sessionStorage.removeItem("autoAiOAuthSuccess"); }
+      if (sessionStorage.getItem("autoAiAdminKey")) refreshModalConnections();
     }
   } catch (error) {
     showMessage("Could not load accounts: " + error.message, true);
@@ -707,10 +723,17 @@ function openForm(id = null) {
     ? "Connect or manage the social profiles dedicated to this account."
     : "Save the account first, then connect its YouTube and TikTok profiles here.";
   $("#modalAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
-  $("#modalAdminKey").onchange = () => { const value = $("#modalAdminKey").value.trim(); if (value) sessionStorage.setItem("autoAiAdminKey", value); };
+  $("#youtubeAdminKey").value = $("#modalAdminKey").value;
+  $("#modalAdminKey").onchange = () => {
+    const value = $("#modalAdminKey").value.trim();
+    if (value) { sessionStorage.setItem("autoAiAdminKey", value); $("#youtubeAdminKey").value = value; }
+  };
   $("#modalConnectYoutube").hidden = account ? !account.youtube : false;
   $("#modalConnectTiktok").hidden = account ? !account.tiktok : false;
+  $("#modalConnectionDetails").replaceChildren();
+  $("#saveButton").textContent = account ? "Save changes" : "Save account";
   $("#modal").showModal();
+  if (account && sessionStorage.getItem("autoAiAdminKey")) refreshModalConnections();
 }
 
 async function updateAccount(account, changes) {
@@ -804,6 +827,7 @@ $("#form").onsubmit = async event => {
     await loadAccounts();
     if (savedId) {
       $("#youtubeAccount").value = savedId;
+      $("#youtubeAdminKey").value = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
       $("#modalConnections").hidden = false;
       $("#modalAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
       $("#modalConnectYoutube").hidden = !payload.platforms.includes("youtube");
@@ -1885,146 +1909,114 @@ async function refreshModalConnections() {
   const accountId = editingId;
   const key = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
   const status = $("#modalConnectionStatus");
-  if (!accountId) { status.textContent = "Save this account before checking its connections."; return; }
-  if (!key) { status.textContent = "Enter your Auto AI admin access key first."; return; }
-  status.textContent = "Checking YouTube and TikTok connections...";
+  const details = $("#modalConnectionDetails");
+  if (!accountId) { status.textContent = "Save this account before connecting social profiles."; return; }
+  if (!key) { status.textContent = "Enter your Auto AI admin access key first."; $("#modalAdminKey").focus(); return; }
+  status.textContent = "Checking this account's social connections...";
+  details.replaceChildren();
   try {
-    const headers = { "x-auto-ai-admin-key": key };
-    const [yr, tr] = await Promise.all([fetch("/api/youtube/status", { headers }), fetch("/api/tiktok/status", { headers })]);
+    const headers = { "x-auto-ai-admin-key": key, "Cache-Control": "no-cache" };
+    const [yr, tr] = await Promise.all([
+      fetch("/api/youtube/status", { headers, cache: "no-store" }),
+      fetch("/api/tiktok/status", { headers, cache: "no-store" })
+    ]);
     const [yt, tt] = await Promise.all([youtubeApiData(yr), youtubeApiData(tr)]);
     sessionStorage.setItem("autoAiAdminKey", key);
-    const y = yt.connections.find(item => item.account_id === accountId);
-    const t = tt.connections.find(item => item.account_id === accountId);
-    status.textContent = "YouTube: " + (y ? "Connected to " + (y.channel_title || "your channel") : "Not connected") +
-      " · TikTok: " + (t ? "Connected to @" + (t.display_name || "your profile") : "Not connected");
-  } catch (error) { status.textContent = "Could not check connections: " + error.message; }
+    $("#youtubeAdminKey").value = key;
+    const y = (yt.connections || []).find(item => item.account_id === accountId);
+    const t = (tt.connections || []).find(item => item.account_id === accountId);
+    const addRow = (platform, connection, label) => {
+      const row = document.createElement("div");
+      row.className = "connection-row";
+      const name = document.createElement("span");
+      name.textContent = label + ": " + (connection
+        ? (platform === "youtube" ? (connection.channel_title || "YouTube channel") : "@" + (connection.display_name || "TikTok profile")) + " · Connected"
+        : "Not connected");
+      row.append(name);
+      if (connection) {
+        const disconnect = makeButton("Disconnect", "danger");
+        disconnect.type = "button";
+        disconnect.onclick = async () => {
+          if (!confirm("Disconnect " + label + " from this Auto AI account?")) return;
+          disconnect.disabled = true;
+          try {
+            const response = await fetch("/api/" + platform + "/disconnect", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+              body: JSON.stringify({ account_id: accountId })
+            });
+            await youtubeApiData(response);
+            await refreshModalConnections();
+          } catch (error) {
+            status.textContent = "Could not disconnect " + label + ": " + error.message;
+            disconnect.disabled = false;
+          }
+        };
+        row.append(disconnect);
+      }
+      details.append(row);
+    };
+    addRow("youtube", y, "YouTube");
+    addRow("tiktok", t, "TikTok");
+    status.textContent = "Connection status loaded for " + (accounts.find(item => item.id === accountId)?.name || "this account") + ".";
+  } catch (error) {
+    status.textContent = "Connection check failed: " + error.message + ". Check the admin key and Cloudflare OAuth settings.";
+  }
 }
 async function connectSocialFromModal(platform) {
   const key = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
   const accountId = editingId;
   const status = $("#modalConnectionStatus");
   const button = platform === "youtube" ? $("#modalConnectYoutube") : $("#modalConnectTiktok");
-  if (!accountId) { status.textContent = "Save the account before connecting a social profile."; return; }
+  const label = platform === "youtube" ? "YouTube / Google" : "TikTok";
+  if (!accountId) { status.textContent = "Save this account before connecting " + label + "."; return; }
   if (!key) { status.textContent = "Enter your Auto AI admin access key."; $("#modalAdminKey").focus(); return; }
   button.disabled = true;
-  status.textContent = "Contacting Auto AI securely to start " + (platform === "youtube" ? "Google" : "TikTok") + " authorisation...";
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  status.textContent = "Starting " + label + " authorisation...";
   try {
-    const response = await fetch(platform === "youtube" ? "/api/youtube/connect" : "/api/tiktok/connect", {
-      method: "POST", headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
-      body: JSON.stringify({ account_id: accountId }), signal: controller.signal
+    const response = await fetch("/api/" + platform + "/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+      body: JSON.stringify({ account_id: accountId }),
+      cache: "no-store",
+      credentials: "same-origin"
     });
     const data = await youtubeApiData(response);
+    if (!data.authorization_url || !data.authorization_url.startsWith("https://")) {
+      throw new Error("The server did not return a valid authorisation link.");
+    }
     sessionStorage.setItem("autoAiAdminKey", key);
-    status.textContent = "Opening " + (platform === "youtube" ? "Google" : "TikTok") + " authorisation...";
-    location.assign(data.authorization_url);
+    sessionStorage.setItem("autoAiPendingSocialAccount", accountId);
+    sessionStorage.setItem("autoAiPendingSocialPlatform", platform);
+    $("#youtubeAdminKey").value = key;
+    status.textContent = "Opening " + label + ". Complete approval to return to Auto AI.";
+    window.location.href = data.authorization_url;
   } catch (error) {
-    status.textContent = error.name === "AbortError"
-      ? "Connection request timed out. Check the OAuth client credentials and redirect URL in Cloudflare."
-      : (platform === "youtube" ? "YouTube" : "TikTok") + " connection failed: " + error.message;
+    status.textContent = label + " connection could not start: " + error.message;
     button.disabled = false;
-  } finally { clearTimeout(timeout); }
+  }
 }
 $("#modalConnectYoutube").onclick = () => connectSocialFromModal("youtube");
 $("#modalConnectTiktok").onclick = () => connectSocialFromModal("tiktok");
 $("#modalRefreshConnections").onclick = refreshModalConnections;
 
-$("#youtubeConnect").onclick = async () => {
-  const key = $("#youtubeAdminKey").value.trim();
-  const accountId = $("#youtubeAccount").value;
-  const target = $("#youtubeStatus");
-  if (!key) { target.textContent = "Enter the admin access key first."; return; }
-  if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
-  const button = $("#youtubeConnect");
-  button.disabled = true;
-  target.textContent = "Starting secure Google authorisation...";
-  try {
-    const response = await fetch("/api/youtube/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
-      body: JSON.stringify({ account_id: accountId })
-    });
-    const data = await youtubeApiData(response);
-    sessionStorage.setItem("autoAiAdminKey", key);
-    location.href = data.authorization_url;
-  } catch (error) {
-    target.textContent = "Connect request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server. Check the browser connection and Cloudflare Function logs.");
-    button.disabled = false;
-  }
-};
-$("#youtubeRefresh").onclick = refreshYoutubeStatus;
-$("#youtubeAccount").onchange = () => { refreshYoutubeStatus(); refreshTikTokStatus(); refreshYoutubeUploadHistory(); };
-
-function tiktokAdminHeaders() {
-  return { "Content-Type": "application/json", "x-auto-ai-admin-key": $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "" };
-}
-async function refreshTikTokStatus() {
-  const target = $("#tiktokStatus");
-  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
-  if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
-  try {
-    const response = await fetch("/api/tiktok/status", { headers: { "x-auto-ai-admin-key": key } });
-    const data = await youtubeApiData(response);
-    target.replaceChildren();
-    if (!data.connections.length) { target.textContent = "No TikTok accounts connected yet."; return; }
-    const selectedConnection = data.connections.filter(connection => connection.account_id === $("#youtubeAccount").value);
-    if (!$("#youtubeAccount").value) { target.textContent = "Choose a channel below to manage its TikTok destination."; return; }
-    if (!selectedConnection.length) { target.textContent = "No TikTok profile connected to the selected Auto AI channel yet."; return; }
-    selectedConnection.forEach(connection => {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.style.marginTop = "8px";
-      const label = document.createElement("span");
-      label.textContent = (connection.account_name || "Auto AI account") + " → @" + (connection.display_name || "TikTok account") + " (connected)";
-      const disconnect = makeButton("Disconnect", "danger");
-      disconnect.onclick = async () => {
-        if (!confirm("Disconnect this TikTok account from Auto AI?")) return;
-        const result = await fetch("/api/tiktok/disconnect", { method: "POST", headers: tiktokAdminHeaders(), body: JSON.stringify({ account_id: connection.account_id }) });
-        try { await youtubeApiData(result); }
-        catch (error) { target.textContent = error.message; return; }
-        refreshTikTokStatus();
-      };
-      row.append(label, disconnect);
-      target.append(row);
-    });
-  } catch (error) { target.textContent = "TikTok status request failed: " + (error.message || "No response received."); }
-}
-$("#tiktokConnect").onclick = async () => {
-  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
-  const accountId = $("#youtubeAccount").value;
-  const target = $("#tiktokStatus");
-  if (!key) { target.textContent = "Enter the Auto AI admin key in the YouTube Connection section first."; return; }
-  if (!accountId) { target.textContent = "Choose the Auto AI account to connect."; return; }
-  const button = $("#tiktokConnect");
-  button.disabled = true;
-  target.textContent = "Starting secure TikTok authorisation...";
-  try {
-    const response = await fetch("/api/tiktok/connect", { method: "POST", headers: tiktokAdminHeaders(), body: JSON.stringify({ account_id: accountId }) });
-    const data = await youtubeApiData(response);
-    sessionStorage.setItem("autoAiAdminKey", key);
-    location.href = data.authorization_url;
-  } catch (error) {
-    target.textContent = "TikTok connection could not start: " + (error.message || "Check Cloudflare settings and try again.");
-    button.disabled = false;
-  }
-};
-$("#tiktokRefresh").onclick = refreshTikTokStatus;
-if ($("#youtubeAdminKey")) $("#youtubeAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
-const youtubeParams = new URLSearchParams(location.search);
-if (youtubeParams.has("youtube")) {
-  $("#youtubeStatus").textContent = youtubeParams.get("youtube") === "connected"
-    ? "Google authorised the YouTube channel. Checking saved connection..."
-    : "YouTube connection issue: " + (youtubeParams.get("message") || "Please try again.");
+const socialCallbackParams = new URLSearchParams(location.search);
+const socialCallbackPlatform = socialCallbackParams.has("youtube") ? "youtube" : socialCallbackParams.has("tiktok") ? "tiktok" : "";
+const socialCallbackStatus = socialCallbackPlatform ? socialCallbackParams.get(socialCallbackPlatform) : "";
+const socialCallbackMessage = socialCallbackParams.get("message") || "";
+if (socialCallbackPlatform) {
   history.replaceState({}, "", location.pathname);
+  const pendingId = sessionStorage.getItem("autoAiPendingSocialAccount");
+  if (pendingId) sessionStorage.setItem("autoAiOpenAccountAfterOAuth", pendingId);
+  sessionStorage.removeItem("autoAiPendingSocialAccount");
+  sessionStorage.removeItem("autoAiPendingSocialPlatform");
+  if (socialCallbackStatus === "error") {
+    sessionStorage.setItem("autoAiOAuthError", (socialCallbackPlatform === "youtube" ? "YouTube" : "TikTok") + " connection failed: " + (socialCallbackMessage || "Authorisation was not completed."));
+  } else {
+    sessionStorage.removeItem("autoAiOAuthError");
+    sessionStorage.setItem("autoAiOAuthSuccess", (socialCallbackPlatform === "youtube" ? "YouTube" : "TikTok") + " connected successfully.");
+  }
 }
-if (youtubeParams.has("tiktok")) {
-  $("#tiktokStatus").textContent = youtubeParams.get("tiktok") === "connected"
-    ? "TikTok authorised successfully. Checking saved connection..."
-    : "TikTok connection issue: " + (youtubeParams.get("message") || "Please try again.");
-  history.replaceState({}, "", location.pathname);
-}
-
 loadAccounts();
 loadScriptLibrary();
 loadProductionQueue();
