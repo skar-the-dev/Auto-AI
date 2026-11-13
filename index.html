@@ -257,6 +257,38 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <button type="button" class="secondary" id="youtubeRefresh">Refresh connection status</button>
   </div>
   <div id="youtubeStatus" class="notice" aria-live="polite">YouTube is not connected yet.</div>
+  <div class="subpanel" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+    <h3>Publish a finished video</h3>
+    <p class="muted">Upload a completed video file to the connected channel. YouTube handles scheduled publishing after the upload.</p>
+    <label>Video file
+      <input id="youtubeVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime">
+    </label>
+    <label>Video title
+      <input id="youtubeVideoTitle" maxlength="100" placeholder="Enter a YouTube title">
+    </label>
+    <label>Description
+      <textarea id="youtubeVideoDescription" rows="3" maxlength="5000" placeholder="Video description"></textarea>
+    </label>
+    <label>Tags (comma separated)
+      <input id="youtubeVideoTags" placeholder="gaming, news, shorts">
+    </label>
+    <label>Visibility
+      <select id="youtubePrivacy">
+        <option value="private">Private</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="public">Public</option>
+      </select>
+    </label>
+    <label>Schedule (optional)
+      <input id="youtubePublishAt" type="datetime-local">
+    </label>
+    <label style="display:flex;gap:10px;align-items:flex-start">
+      <input id="youtubePublishConsent" type="checkbox" style="width:auto;margin-top:3px">
+      <span>I authorise Auto AI to upload this selected video to the YouTube channel shown above using the visibility and schedule I selected.</span>
+    </label>
+    <button type="button" id="youtubeUpload">Upload to YouTube</button>
+    <div id="youtubeUploadStatus" class="notice" aria-live="polite">No video uploaded yet.</div>
+  </div>
 </section>
 
 <section class="panel" style="margin-top:18px" id="tiktokPanel">
@@ -1675,6 +1707,53 @@ async function refreshYoutubeStatus() {
     });
   } catch (error) { target.textContent = "Status request failed (" + (error.name || "Error") + "): " + (error.message || "No response received from the server."); }
 }
+$("#youtubeUpload").onclick = async () => {
+  const status = $("#youtubeUploadStatus");
+  const file = $("#youtubeVideoFile").files?.[0];
+  const accountId = $("#youtubeAccount").value;
+  const title = $("#youtubeVideoTitle").value.trim();
+  const key = $("#youtubeAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const privacy = $("#youtubePrivacy").value;
+  const scheduledLocal = $("#youtubePublishAt").value;
+  if (!key) { status.textContent = "Enter your Auto AI admin key first."; return; }
+  if (!accountId) { status.textContent = "Choose the connected Auto AI account."; return; }
+  if (!file) { status.textContent = "Choose a finished video file."; return; }
+  if (!title) { status.textContent = "Enter a YouTube title."; return; }
+  if (!$("#youtubePublishConsent").checked) { status.textContent = "Confirm the upload authorisation before continuing."; return; }
+  if (file.size > 100 * 1024 * 1024) { status.textContent = "This first upload route supports files up to 100 MB. Larger files need direct cloud storage upload."; return; }
+  if (scheduledLocal && privacy !== "private") { status.textContent = "Scheduled YouTube videos must be uploaded as Private."; return; }
+  const headers = {
+    "x-auto-ai-admin-key": key,
+    "x-youtube-account-id": accountId,
+    "x-youtube-title": title,
+    "x-youtube-description": $("#youtubeVideoDescription").value,
+    "x-youtube-tags": JSON.stringify($("#youtubeVideoTags").value.split(",").map(tag => tag.trim()).filter(Boolean)),
+    "x-youtube-privacy": privacy,
+    "Content-Type": file.type || "video/mp4"
+  };
+  if (scheduledLocal) headers["x-youtube-publish-at"] = new Date(scheduledLocal).toISOString();
+  const button = $("#youtubeUpload");
+  button.disabled = true;
+  status.textContent = "Uploading to YouTube. Keep this page open until YouTube confirms the upload.";
+  try {
+    const response = await fetch("/api/youtube/upload", { method: "POST", headers, body: file });
+    const data = await youtubeApiData(response);
+    status.replaceChildren();
+    const message = document.createElement("p");
+    message.textContent = data.status + ": " + data.title;
+    const link = document.createElement("a");
+    link.href = data.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Open YouTube video";
+    link.style.color = "#a9bcff";
+    status.append(message, link);
+  } catch (error) {
+    status.textContent = "Upload failed: " + error.message;
+  } finally {
+    button.disabled = false;
+  }
+};
 $("#youtubeConnect").onclick = async () => {
   const key = $("#youtubeAdminKey").value.trim();
   const accountId = $("#youtubeAccount").value;
