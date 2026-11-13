@@ -1,0 +1,8 @@
+{
+  "name": "auto-ai-renderer",
+  "private": true,
+  "type": "module",
+  "scripts": { "deploy": "wrangler deploy", "dev": "wrangler dev" },
+  "dependencies": { "@cloudflare/containers": "^0.3.0" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
