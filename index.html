@@ -1701,6 +1701,24 @@ async function loadClipSources() {
       };
       const mediaInfo = document.createElement("p"); mediaInfo.className = "muted";
       mediaInfo.textContent = source.media_key ? "Stored file: " + (source.media_filename || "Imported clip") + " · " + Math.round((source.media_size || 0)/1024/1024*10)/10 + " MB" : "No video file imported yet.";
+      let previewVideo = null;
+      const previewButton = makeButton("Preview imported clip", "secondary");
+      previewButton.disabled = !source.media_key;
+      previewButton.onclick = async () => {
+        previewButton.disabled = true; previewButton.textContent = "Loading preview...";
+        try {
+          const response = await fetch("/api/clips/import?script_id="+encodeURIComponent(scriptId)+"&source_id="+encodeURIComponent(source.id), { headers:{"x-auto-ai-admin-key":sourceAdminKey()} });
+          if (!response.ok) { const data=await response.json().catch(()=>({})); throw new Error(data.error || "Could not load clip preview."); }
+          const blob = await response.blob();
+          if (previewVideo?.dataset.objectUrl) URL.revokeObjectURL(previewVideo.dataset.objectUrl);
+          previewVideo = document.createElement("video"); previewVideo.controls=true; previewVideo.playsInline=true; previewVideo.preload="metadata"; previewVideo.style.width="100%"; previewVideo.style.maxHeight="420px";
+          previewVideo.dataset.objectUrl=URL.createObjectURL(blob); previewVideo.src=previewVideo.dataset.objectUrl;
+          card.insertBefore(previewVideo,reviewNote);
+          previewButton.textContent="Reload preview";
+        } catch(error) { status.textContent="Preview failed: "+error.message; previewButton.textContent="Preview imported clip"; }
+        finally { previewButton.disabled=false; }
+      };
+
 
       const reviewNote = document.createElement("textarea"); reviewNote.rows = 2; reviewNote.maxLength = 1000; reviewNote.placeholder = "Your review note (required to approve/reject)";
       reviewNote.value = source.review_note || "";
@@ -1720,7 +1738,7 @@ async function loadClipSources() {
       const remove = makeButton("Remove candidate", "danger");
       remove.onclick = async () => { if (!confirm("Remove this candidate and its description credit?")) return; try { await sourceApi("/api/sources?id=" + encodeURIComponent(source.id), { method:"DELETE" }); await loadClipSources(); } catch (error) { status.textContent = "Could not remove candidate: " + error.message; } };
       const actions = document.createElement("div"); actions.className = "actions"; actions.append(approve,reject,reset,remove);
-      card.append(heading,detail,link,note,mediaLabel,importButton,mediaInfo,reviewNote,actions); target.append(card);
+      card.append(heading,detail,link,note,mediaLabel,importButton,mediaInfo,previewButton,reviewNote,actions); target.append(card);
     });
     return sources;
   } catch (error) { status.textContent = "Could not load candidates: " + error.message; return []; }
