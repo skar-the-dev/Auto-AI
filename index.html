@@ -218,6 +218,22 @@ label {display:grid;gap:6px;color:var(--muted)}
       <option value="">Choose a saved script</option>
     </select>
   </label>
+  <label>AI voice
+    <select id="voiceoverSpeaker">
+      <option value="luna">Luna — warm, natural</option>
+      <option value="asteria">Asteria — clear, upbeat</option>
+      <option value="athena">Athena — confident</option>
+      <option value="orion">Orion — steady, deep</option>
+      <option value="apollo">Apollo — energetic</option>
+      <option value="hera">Hera — expressive</option>
+      <option value="zeus">Zeus — authoritative</option>
+      <option value="atlas">Atlas — grounded</option>
+    </select>
+  </label>
+  <button type="button" class="secondary" id="generateVoiceover">Generate AI voiceover</button>
+  <div id="voiceoverStatus" class="notice" style="display:none"></div>
+  <audio id="voiceoverPreview" controls playsinline style="display:none;width:100%;margin-top:12px"></audio>
+  <a id="downloadVoiceover" style="display:none;color:#a9bcff;font-weight:700;margin-top:10px" download="auto-ai-voiceover.mp3">Download voiceover MP3</a>
   <button type="button" id="renderVideo">Create vertical video draft</button>
   <div id="renderStatus" class="notice" style="display:none"></div>
   <video id="renderPreview" controls playsinline style="display:none;width:100%;max-width:360px;border-radius:14px;margin-top:12px;background:#000"></video>
@@ -1124,6 +1140,56 @@ async function loadRenderedVideos() {
     target.textContent = "Saved video storage unavailable: " + error.message;
   }
 }
+
+let voiceoverObjectUrl = null;
+$("#generateVoiceover").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#voiceoverStatus");
+  const button = $("#generateVoiceover");
+  status.style.display = "block";
+  if (!item) {
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  const script = item.script || {};
+  const voiceText = String(script.voiceover || script.narration || script.hook || "").trim();
+  if (!voiceText) {
+    status.textContent = "This saved script has no voiceover text. Create or edit a script with narration first.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Generating voiceover...";
+  status.textContent = "Creating your AI narration with Cloudflare Workers AI. This can take a little while.";
+  try {
+    const response = await fetch("/api/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: voiceText, speaker: $("#voiceoverSpeaker").value })
+    });
+    if (!response.ok) {
+      const raw = await response.text();
+      let message = raw;
+      try { message = JSON.parse(raw).error || raw; } catch {}
+      throw new Error(message || "Voiceover request failed (HTTP " + response.status + ").");
+    }
+    const blob = await response.blob();
+    if (!blob.size || !blob.type.includes("audio")) throw new Error("The voice service did not return an MP3 audio file.");
+    if (voiceoverObjectUrl) URL.revokeObjectURL(voiceoverObjectUrl);
+    voiceoverObjectUrl = URL.createObjectURL(blob);
+    const player = $("#voiceoverPreview");
+    player.src = voiceoverObjectUrl;
+    player.style.display = "block";
+    const link = $("#downloadVoiceover");
+    link.href = voiceoverObjectUrl;
+    link.style.display = "inline-block";
+    status.textContent = "Your AI voiceover is ready. Play it below or download the MP3. Video audio-mixing is the next production step.";
+  } catch (error) {
+    status.textContent = "Voiceover failed: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Generate AI voiceover";
+  }
+};
 
 $("#renderVideo").onclick = async () => {
   const item = savedScripts.find(script => script.id === $("#renderScript").value);
