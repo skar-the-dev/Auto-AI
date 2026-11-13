@@ -2,7 +2,7 @@ import { json, redirect, callbackUrl, ensureYoutubeTables, encryptSecret } from 
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
-  const appUrl = new URL("/", request.url);
+  const appUrl = new URL("/app/", request.url);
   let returnAccountId = "";
   try {
     if (!env.DB) throw new Error("Database binding DB is missing.");
