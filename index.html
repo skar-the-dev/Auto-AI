@@ -231,6 +231,10 @@ label {display:grid;gap:6px;color:var(--muted)}
     </select>
   </label>
   <button type="button" class="secondary" id="generateVoiceover">Generate AI voiceover</button>
+  <button type="button" class="secondary" id="findStockFootage">Find stock footage for scenes</button>
+  <div id="footageStatus" class="notice" style="display:none"></div>
+  <div id="footageResults" class="grid" style="margin-top:12px"></div>
+  <p class="muted" style="font-size:12px">Stock video search by <a href="https://pixabay.com/" target="_blank" rel="noopener">Pixabay</a>. Footage is selected per scene; review each clip before using it.</p>
   <div id="voiceoverStatus" class="notice" style="display:none"></div>
   <audio id="voiceoverPreview" controls playsinline style="display:none;width:100%;margin-top:12px"></audio>
   <a id="downloadVoiceover" style="display:none;color:#a9bcff;font-weight:700;margin-top:10px" download="auto-ai-voiceover.mp3">Download voiceover MP3</a>
@@ -327,6 +331,7 @@ const API = "/api/accounts";
 let accounts = [];
 let currentScript = null;
 let savedScripts = [];
+let stockFootageByScene = [];
 let editingId = null;
 let busy = false;
 
@@ -1188,6 +1193,82 @@ $("#generateVoiceover").onclick = async () => {
   } finally {
     button.disabled = false;
     button.textContent = "Generate AI voiceover";
+  }
+};
+
+$("#findStockFootage").onclick = async () => {
+  const item = savedScripts.find(script => script.id === $("#renderScript").value);
+  const status = $("#footageStatus");
+  const results = $("#footageResults");
+  const button = $("#findStockFootage");
+  status.style.display = "block";
+  results.innerHTML = "";
+  if (!item) {
+    status.textContent = "Choose a saved script first.";
+    return;
+  }
+  const script = item.script || {};
+  const scenes = Array.isArray(script.scenes) && script.scenes.length
+    ? script.scenes
+    : [{ text: script.hook || item.title }, { text: script.voiceover || item.topic }];
+  const lines = scenes.map(scene => String(scene.visual || scene.text || "").trim()).filter(Boolean).slice(0, 6);
+  if (!lines.length) {
+    status.textContent = "This script does not contain scene descriptions to search.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Searching footage...";
+  stockFootageByScene = [];
+  try {
+    for (let index = 0; index < lines.length; index++) {
+      const query = lines[index].split(/\s+/).slice(0, 7).join(" ");
+      status.textContent = "Searching Pixabay footage for scene " + (index + 1) + " of " + lines.length + "...";
+      const response = await fetch("/api/footage?q=" + encodeURIComponent(query));
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "Footage search failed (HTTP " + response.status + ").");
+      const clips = data.videos || [];
+      stockFootageByScene[index] = clips[0] || null;
+      const card = document.createElement("div");
+      card.className = "notice";
+      card.style.marginTop = "10px";
+      const heading = document.createElement("strong");
+      heading.textContent = "Scene " + (index + 1) + ": " + query;
+      card.appendChild(heading);
+      if (!clips.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "No matching stock clip found. The animated background will be used for this scene.";
+        card.appendChild(empty);
+      } else {
+        const clip = clips[0];
+        const video = document.createElement("video");
+        video.src = clip.video_url;
+        video.poster = clip.thumbnail;
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        video.controls = true;
+        video.style.cssText = "width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-top:10px;background:#000";
+        card.appendChild(video);
+        const detail = document.createElement("p");
+        detail.textContent = clip.title + " • " + clip.duration + " sec • " + clip.width + "×" + clip.height + " • by " + clip.creator;
+        card.appendChild(detail);
+        const sourceLink = document.createElement("a");
+        sourceLink.href = clip.source_url;
+        sourceLink.target = "_blank";
+        sourceLink.rel = "noopener";
+        sourceLink.textContent = "View source on Pixabay";
+        card.appendChild(sourceLink);
+      }
+      results.appendChild(card);
+    }
+    const found = stockFootageByScene.filter(Boolean).length;
+    status.textContent = found + " of " + lines.length + " scenes have matching footage. The selected clips are ready for the video-rendering test.";
+  } catch (error) {
+    status.textContent = "Footage search stopped: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Find stock footage for scenes";
   }
 };
 
