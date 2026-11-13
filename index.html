@@ -95,7 +95,30 @@ dialog {
   border-radius:16px;max-width:440px;
   width:calc(100% - 28px);
 }
-dialog::backdrop {background:#000a}
+dialog::backdrop {background:rgba(0,0,0,.76);backdrop-filter:blur(5px)}
+#modal {
+  max-height:min(88dvh,760px);overflow:auto;overscroll-behavior:contain;
+  padding:0;border-radius:22px;width:min(520px,calc(100% - 24px));
+}
+#modal form {padding:clamp(18px,4vw,26px);gap:15px}
+#modal h2 {font-size:25px;margin:0 0 2px}
+#modal label {display:grid;gap:7px;font-size:14px}
+#modal input:not([type="checkbox"]) {width:100%;min-height:52px;padding:13px 15px;background:#0d1628;border:1px solid #304361;border-radius:14px}
+#modal .checks {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#modal .checks label {display:flex;align-items:center;gap:9px;padding:12px;border:1px solid #304361;border-radius:13px;background:rgba(32,45,71,.55);min-width:0}
+#modal .checks input {width:20px;height:20px;min-height:0;flex:0 0 auto;accent-color:#8ba6ff}
+#modal .actions {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#modal .actions button {min-height:52px}
+#modalConnections {border-top:1px solid rgba(145,169,215,.18);padding-top:16px;margin-top:2px;display:grid;gap:11px}
+#modalConnections[hidden] {display:none}
+#modalConnections .connect-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#modalConnections button {min-height:48px}
+#modalConnectionStatus {margin:0}
+@media(max-width:420px) {
+  #modal .checks {grid-template-columns:1fr}
+  #modal .actions {grid-template-columns:1fr}
+  #modalConnections .connect-grid {grid-template-columns:1fr}
+}
 form {display:grid;gap:12px}
 label {display:grid;gap:6px;color:var(--muted)}
 .checks {display:flex;gap:15px;flex-wrap:wrap}
@@ -460,44 +483,36 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 <dialog id="modal">
   <form id="form">
     <h2 id="formTitle">Add account</h2>
-
-    <label>
-      Account name
-      <input name="name" required
-        placeholder="e.g. Daily Viral Clips">
+    <label>Account name
+      <input name="name" required placeholder="e.g. Daily Viral Clips">
     </label>
-
-    <label>
-      Content niche
-      <input name="niche" required
-        placeholder="e.g. Gaming, facts, motivation">
+    <label>Content niche
+      <input name="niche" required placeholder="e.g. Gaming, facts, motivation">
     </label>
-
-    <label>
-      Publishing interval (minutes)
-      <input name="interval" type="number"
-        min="60" max="10080" step="30"
-        value="240" required>
+    <label>Publishing interval (minutes)
+      <input name="interval" type="number" min="60" max="10080" step="30" value="240" required>
     </label>
-
     <div class="checks">
-      <label>
-        <input type="checkbox" name="youtube" checked>
-        YouTube Shorts
-      </label>
-
-      <label>
-        <input type="checkbox" name="tiktok" checked>
-        TikTok
-      </label>
+      <label><input type="checkbox" name="youtube" checked> YouTube Shorts</label>
+      <label><input type="checkbox" name="tiktok" checked> TikTok</label>
     </div>
-
     <div class="actions">
       <button type="submit" id="saveButton">Save account</button>
-      <button type="button" class="secondary" id="cancel">
-        Cancel
-      </button>
+      <button type="button" class="secondary" id="cancel">Cancel</button>
     </div>
+    <section id="modalConnections" hidden>
+      <h3>Connect this account</h3>
+      <p class="muted" style="margin:0">Your account is saved. Connect its dedicated social profiles here — no need to find the connections further down the page.</p>
+      <label>Auto AI admin access key
+        <input id="modalAdminKey" type="password" autocomplete="current-password" placeholder="Enter your Cloudflare admin key">
+      </label>
+      <div class="connect-grid">
+        <button type="button" id="modalConnectYoutube">Connect YouTube</button>
+        <button type="button" id="modalConnectTiktok" class="secondary">Connect TikTok</button>
+      </div>
+      <div id="modalConnectionStatus" class="notice" aria-live="polite">Save the account, then connect YouTube and/or TikTok.</div>
+      <button type="button" class="secondary" id="modalDone">Done</button>
+    </section>
   </form>
 </dialog>
 
@@ -702,7 +717,13 @@ function openForm(id = null) {
     ? account.youtube : true;
   form.elements.tiktok.checked = account
     ? account.tiktok : true;
-
+  $("#modalConnections").hidden = !account;
+  $("#modalConnectionStatus").textContent = account
+    ? "Connect or manage the social profiles dedicated to this account."
+    : "Save the account first, then connect its YouTube and TikTok profiles here.";
+  $("#modalAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
+  $("#modalConnectYoutube").hidden = account ? !account.youtube : false;
+  $("#modalConnectTiktok").hidden = account ? !account.tiktok : false;
   $("#modal").showModal();
 }
 
@@ -750,6 +771,7 @@ async function deleteAccount(account) {
 $("#add").onclick = () => openForm();
 
 $("#cancel").onclick = () => $("#modal").close();
+$("#modalDone").onclick = () => $("#modal").close();
 
 $("#form").onsubmit = async event => {
   event.preventDefault();
@@ -783,29 +805,30 @@ $("#form").onsubmit = async event => {
   try {
     setBusy(true);
 
+    let savedId = editingId;
     if (editingId) {
-      await apiRequest(
-        API + "?id=" + encodeURIComponent(editingId),
-        {
-          method: "PATCH",
-          body: JSON.stringify(payload)
-        }
-      );
-    } else {
-      await apiRequest(API, {
-        method: "POST",
-        body: JSON.stringify(payload)
+      await apiRequest(API + "?id=" + encodeURIComponent(editingId), {
+        method: "PATCH", body: JSON.stringify(payload)
       });
+    } else {
+      const created = await apiRequest(API, { method: "POST", body: JSON.stringify(payload) });
+      savedId = created.id;
     }
 
-    $("#modal").close();
     await loadAccounts();
+    if (savedId) {
+      $("#youtubeAccount").value = savedId;
+      $("#modalConnections").hidden = false;
+      $("#modalAdminKey").value = sessionStorage.getItem("autoAiAdminKey") || "";
+      $("#modalConnectYoutube").hidden = !payload.platforms.includes("youtube");
+      $("#modalConnectTiktok").hidden = !payload.platforms.includes("tiktok");
+      $("#modalConnectionStatus").textContent = "Account saved. Connect its selected social platforms below.";
+      $("#formTitle").textContent = "Account saved";
+      $("#saveButton").textContent = "Save changes";
+      editingId = savedId;
+    }
 
-    showMessage(editingId
-      ? "Account changes saved."
-      : "New account saved to Cloudflare.");
-
-    editingId = null;
+    showMessage(editingId ? "Account saved. Connect its social profiles in the account window." : "New account saved to Cloudflare.");
   } catch (error) {
     showMessage("Could not save account: " + error.message, true);
   } finally {
@@ -1872,6 +1895,32 @@ $("#youtubeUpload").onclick = async () => {
   catch (error) { $("#youtubeUploadStatus").textContent = "Upload failed: " + error.message; }
   finally { button.disabled = false; }
 };
+async function connectSocialFromModal(platform) {
+  const key = $("#modalAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  const accountId = editingId;
+  const status = $("#modalConnectionStatus");
+  const button = platform === "youtube" ? $("#modalConnectYoutube") : $("#modalConnectTiktok");
+  if (!accountId) { status.textContent = "Save the account before connecting a social profile."; return; }
+  if (!key) { status.textContent = "Enter your Auto AI admin access key."; $("#modalAdminKey").focus(); return; }
+  button.disabled = true;
+  status.textContent = platform === "youtube" ? "Starting Google authorisation..." : "Starting TikTok authorisation...";
+  try {
+    const response = await fetch(platform === "youtube" ? "/api/youtube/connect" : "/api/tiktok/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+      body: JSON.stringify({ account_id: accountId })
+    });
+    const data = await youtubeApiData(response);
+    sessionStorage.setItem("autoAiAdminKey", key);
+    location.href = data.authorization_url;
+  } catch (error) {
+    status.textContent = (platform === "youtube" ? "YouTube" : "TikTok") + " connection failed: " + (error.message || "Please try again.");
+    button.disabled = false;
+  }
+}
+$("#modalConnectYoutube").onclick = () => connectSocialFromModal("youtube");
+$("#modalConnectTiktok").onclick = () => connectSocialFromModal("tiktok");
+
 $("#youtubeConnect").onclick = async () => {
   const key = $("#youtubeAdminKey").value.trim();
   const accountId = $("#youtubeAccount").value;
