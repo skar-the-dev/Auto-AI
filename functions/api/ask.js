@@ -146,6 +146,47 @@ function buildSearchQueries(question) {
   return [...new Set(queries)].slice(0, 5);
 }
 
+function parseStructuredModelOutput(result) {
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    if (Array.isArray(result.search_queries) || result.intent || result.interpretation) return result;
+  }
+  const candidates = [
+    result?.choices?.[0]?.message?.content,
+    result?.result?.choices?.[0]?.message?.content,
+    result?.response,
+    result?.result?.response,
+    result?.output_text,
+    result?.text,
+    result?.content,
+    result?.result
+  ];
+  const queue = [...candidates];
+  const seen = new Set();
+  while (queue.length) {
+    const value = queue.shift();
+    if (typeof value === "string" && value.trim()) {
+      const cleaned = value.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+      for (const attempt of [cleaned, cleaned.replace(/\\n/g, "\n")]) {
+        try {
+          const parsed = JSON.parse(attempt);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+        } catch {}
+      }
+      const first = cleaned.indexOf("{"), last = cleaned.lastIndexOf("}");
+      if (first >= 0 && last > first) {
+        try {
+          const parsed = JSON.parse(cleaned.slice(first, last + 1));
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+        } catch {}
+      }
+    } else if (value && typeof value === "object" && !seen.has(value)) {
+      seen.add(value);
+      for (const child of Object.values(value)) queue.push(child);
+    }
+  }
+  throw new Error("The question planner returned an invalid structured response.");
+}
+
 async function understandQuestion(question, env) {
   const prompt = `Understand the user's COMPLETE question before searching.
 Do not answer it. Plan a focused research strategy for any subject or domain.
@@ -180,7 +221,7 @@ Return ONLY valid JSON with those keys.`;
     response_format: { type: "json_object" },
     chat_template_kwargs: { enable_thinking: false }
   });
-  const plan = parseAnswer(result);
+  const plan = parseStructuredModelOutput(result);
   const queries = Array.isArray(plan.search_queries)
     ? plan.search_queries.map(item => String(item).trim()).filter(Boolean).slice(0, 6)
     : [];
