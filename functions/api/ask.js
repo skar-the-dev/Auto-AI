@@ -184,17 +184,64 @@ async function searchWeb(query) {
 }
 
 function parseAnswer(result) {
-  const candidate = result?.choices?.[0]?.message?.content ||
-    result?.result?.choices?.[0]?.message?.content ||
-    result?.response || result?.result?.response || result?.output_text;
-  if (typeof candidate === "string") {
-    const start = candidate.indexOf("{"), end = candidate.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try { return JSON.parse(candidate.slice(start, end + 1)); } catch {}
-    }
+  const candidates = [
+    result?.choices?.[0]?.message?.content,
+    result?.result?.choices?.[0]?.message?.content,
+    result?.response,
+    result?.result?.response,
+    result?.output_text,
+    result?.text,
+    result?.content,
+    result?.result
+  ];
+  let candidate = candidates.find(value => typeof value === "string" && value.trim());
+  if (!candidate) {
+    const seen = new Set();
+    const findText = (value, depth = 0) => {
+      if (depth > 5 || value == null) return "";
+      if (typeof value === "string") return value.trim();
+      if (typeof value !== "object" || seen.has(value)) return "";
+      seen.add(value);
+      for (const key of ["content", "text", "response", "output_text", "answer"]) {
+        const found = findText(value[key], depth + 1);
+        if (found) return found;
+      }
+      for (const child of Object.values(value)) {
+        const found = findText(child, depth + 1);
+        if (found) return found;
+      }
+      return "";
+    };
+    candidate = findText(result);
   }
-  if (candidate && typeof candidate === "object") return candidate;
-  throw new Error("Auto AI could not format the research answer. Please try again.");
+  if (candidate && typeof candidate === "object") {
+    if (typeof candidate.answer === "string") return candidate;
+    candidate = JSON.stringify(candidate);
+  }
+  if (typeof candidate === "string" && candidate.trim()) {
+    const cleaned = candidate.trim()
+      .replace(/^\`\`\`(?:json)?\s*/i, "")
+      .replace(/\s*\`\`\`$/, "");
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        const parsed = JSON.parse(cleaned.slice(start, end + 1));
+        if (parsed && typeof parsed === "object") {
+          if (typeof parsed.answer === "string") return parsed;
+          if (typeof parsed.response === "string") return { answer: parsed.response };
+        }
+      } catch {}
+    }
+    return {
+      answer: cleaned,
+      confidence: "low",
+      coverage_note: "The model returned an unstructured answer. Treat it as provisional and verify the cited sources.",
+      key_points: []
+    };
+  }
+  const shape = result && typeof result === "object" ? Object.keys(result).join(", ") : typeof result;
+  throw new Error("The research model returned an unsupported response format (" + shape + ").");
 }
 
 export async function onRequestPost({ request, env }) {
