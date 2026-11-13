@@ -121,6 +121,84 @@ label {display:grid;gap:6px;color:var(--muted)}
 .batch-result {border:1px solid rgba(124,156,255,.2);line-height:1.5}
 @media(min-width:700px) {.batch-form {grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.batch-generate,.batch-result {grid-column:1/-1}}
 
+
+/* Auto AI dashboard refresh — consistent spacing, cards and mobile controls */
+:root {
+  --bg:#080d19; --panel:#111a2b; --line:#263650;
+  --muted:#9eacc4; --accent:#8ba6ff; --green:#54ddb0;
+}
+body {
+  background:
+    radial-gradient(ellipse at 12% -10%,rgba(91,123,220,.20),transparent 38%),
+    radial-gradient(ellipse at 100% 0%,rgba(63,178,157,.08),transparent 30%),
+    #080d19;
+  letter-spacing:.01em;
+}
+main {max-width:1160px;padding:clamp(16px,3vw,34px)}
+header {padding:12px 2px 22px;border-bottom:1px solid rgba(145,169,215,.13);margin-bottom:22px}
+h1 {font-size:clamp(28px,5vw,36px);letter-spacing:-1.2px}
+h1 span {background:linear-gradient(100deg,#a8bdff,#77e3c0);-webkit-background-clip:text;background-clip:text;color:transparent}
+h2 {font-size:clamp(18px,3vw,22px);letter-spacing:-.35px}
+p {line-height:1.55}
+.panel,.account {
+  background:linear-gradient(155deg,rgba(20,31,51,.97),rgba(14,23,39,.98));
+  border:1px solid rgba(133,158,204,.16);
+  border-radius:18px;padding:clamp(15px,2.5vw,22px);
+  box-shadow:0 10px 30px rgba(0,0,0,.12);
+}
+.grid {gap:13px}
+body > main > section.grid:first-of-type .panel {
+  background:linear-gradient(145deg,rgba(27,43,70,.96),rgba(16,27,46,.98));
+  min-height:112px;
+}
+.stat {font-size:30px;letter-spacing:-1px;margin:5px 0}
+.muted {color:#9eacc4}
+.tag {background:rgba(126,155,218,.13);border:1px solid rgba(142,168,224,.16);color:#cbd8f3}
+.row {gap:12px}
+button,input,select {border-radius:12px;min-height:44px}
+button {transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
+button:not(:disabled):active {transform:scale(.98)}
+button:not(.secondary):not(.danger) {box-shadow:0 5px 16px rgba(112,145,255,.16)}
+button.secondary {background:rgba(91,115,157,.17);border:1px solid rgba(133,158,204,.2)}
+input,select {width:100%}
+label {color:#c2cee3;font-weight:550}
+.notice {border:1px solid rgba(133,158,204,.12);border-radius:14px;background:rgba(37,53,79,.55);line-height:1.5}
+#installHelp {background:linear-gradient(110deg,rgba(48,68,110,.72),rgba(27,43,67,.72));border-color:rgba(142,168,224,.2)}
+#message {border-color:rgba(84,221,176,.18)}
+#youtubePanel,#videoCreatorPanel {margin-top:18px!important}
+#youtubePanel .row,#videoCreatorPanel .row,
+#scriptLibrary + .row {margin-bottom:8px}
+#ideaForm {gap:14px}
+#ideaForm button {min-height:48px}
+#ideaResult,#footageStatus,#voiceoverStatus,#renderStatus {overflow-wrap:anywhere}
+#footageResults iframe {display:block}
+#scriptLibrary,#productionQueue,#accounts {margin-top:14px}
+.account {gap:14px}
+.account h3 {font-size:17px;letter-spacing:-.2px}
+.account .actions {margin-top:2px}
+#modal {box-shadow:0 24px 70px rgba(0,0,0,.45)}
+#modal form {gap:15px}
+#modal input {width:100%}
+a {color:#a9bcff;text-underline-offset:3px}
+audio {border-radius:12px}
+video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
+@media(max-width:600px) {
+  main {padding:16px 13px 30px}
+  header {align-items:center}
+  header p {font-size:13px;margin:5px 0 0}
+  header #add {padding:10px 12px;font-size:13px}
+  .grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .panel,.account {border-radius:15px}
+  .row {align-items:flex-start}
+  .actions {gap:7px}
+  .actions button {flex:1}
+  #youtubePanel .actions button {flex:1 1 100%}
+  #renderPreview {max-width:100%!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after {scroll-behavior:auto!important;transition:none!important}
+}
+
 </style>
 </head>
 
@@ -195,10 +273,6 @@ label {display:grid;gap:6px;color:var(--muted)}
   </form>
   <div id="ideaResult" class="notice" style="display:none;margin-top:16px"></div>
 </section>
-
-
-
->
 
 <section class="panel batch-studio" style="margin-top:24px">
   <div class="batch-heading">
