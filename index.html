@@ -1242,6 +1242,8 @@ $("#renderVideo").onclick = async () => {
   let audioUrl;
   let chunks = [];
   try {
+    audioContext = new AudioContext();
+    await audioContext.resume();
     const voiceResponse = await fetch("/api/voiceover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1276,8 +1278,6 @@ $("#renderVideo").onclick = async () => {
       sceneEnds.push(totalMs * accumulated / totalWeight);
     }
 
-    audioContext = new AudioContext();
-    await audioContext.resume();
     const source = audioContext.createMediaElementSource(audio);
     const narrationGain = audioContext.createGain();
     const destination = audioContext.createMediaStreamDestination();
