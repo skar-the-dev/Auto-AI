@@ -1,5 +1,4 @@
-import { json, requireAdmin } from "../../_shared/youtube.js";
-import { decryptSecret, ensureYoutubeTables } from "../../_shared/youtube.js";
+import { json, requireAdmin, decryptSecret, ensureYoutubeTables } from "../../_shared/youtube.js";
 
 function toBytes(value) {
   if (value instanceof ArrayBuffer) return new Uint8Array(value);
@@ -115,7 +114,7 @@ export async function onRequestPost({ request, env }) {
       snippet: {
         title: String(row.title).slice(0, 100),
         description: [script.caption || "", "Sources:", ...(script.sources || []).map(source => source.url).filter(Boolean)].join("\n").slice(0, 5000),
-        categoryId: "20",
+        categoryId: "22",
         tags: [row.niche, "shorts", "AutoAI"].map(value => String(value).replace(/[^a-z0-9 ]/gi, "").slice(0, 30))
       },
       status: { privacyStatus: privacy }
