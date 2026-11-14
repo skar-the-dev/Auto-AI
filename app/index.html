@@ -312,7 +312,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
     <div>
       <span class="eyebrow">YOUR CONTENT WORKFLOW</span>
       <h2>Series Autopilot</h2>
-      <p class="batch-intro">Choose a channel and niche, then press once. Auto AI creates up to six scripts, generates narration, renders each video and sends them to YouTube automatically. The first video publishes immediately; the rest are scheduled four hours apart. No scene picking or preview approval.</p>
+      <p class="batch-intro">Choose a channel and niche, then create up to six scripts. The AI planning and script stage is available; automatic cloud rendering and scheduled publishing are still being connected to our free GitHub Actions renderer. Nothing will be published until that pipeline is ready.</p>
     </div>
     <span class="tag">Up to 6 videos</span>
   </div>
@@ -361,7 +361,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   </div>
   <div class="subpanel" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line,#26344a)">
     <div class="row"><h3>Production progress</h3><span class="tag" id="jobCount">0 waiting</span></div>
-    <p class="muted">Series Autopilot handles narration, rendering and YouTube publishing for each generated video.</p>
+    <p class="muted">Rendering and publishing are being connected. Generated scripts remain saved in your Video Library.</p>
     <div id="productionQueue" class="grid"><div class="muted">Loading production queue...</div></div>
   </div>
 </section>
@@ -1267,22 +1267,21 @@ $("#batchForm").onsubmit = async event => {
       body: JSON.stringify({ ...batchSettings, topic, understood_topic: clarification.understood_topic || topic, clarification: clarification.needs_clarification ? selectedMeaning : "" })
     });
     await loadScriptLibrary();
-    const completed = [];
-    const failed = [];
-    for (let i = 0; i < (batch.created || []).length; i++) {
-      const item = batch.created[i];
-      result.textContent = "Series Autopilot: producing video " + (i + 1) + " of " + batch.created.length + " — " + item.title + ".";
-      const publishAt = i === 0 ? null : new Date(Date.now() + i * 240 * 60 * 1000).toISOString();
-      try {
-        const response = await fetch("/api/autopilot/publish", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
-          body: JSON.stringify({ account_id: accountId, script_id: item.id, publish_at: publishAt })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.success === false) throw new Error(data.error || "Publishing failed.");
-        completed.push(data);
-      } catch (error) {
+    const created = batch.created || [];
+    result.replaceChildren();
+    const summary = document.createElement("strong");
+    summary.textContent = created.length + " script(s) created and saved.";
+    result.append(summary);
+    const note = document.createElement("p");
+    note.textContent = "Your scripts are ready in Video Library. Automatic video rendering and YouTube publishing are not switched on yet; we're finishing the free cloud rendering pipeline first.";
+    result.append(note);
+    created.forEach(item => {
+      const line = document.createElement("p");
+      line.textContent = item.title + " — saved as a draft.";
+      result.append(line);
+    });
+    if (created.length) showMessage("Created " + created.length + " script(s) for " + account.name + ". No videos were published.");
+  } catch (error) {
         failed.push({ title: item.title, error: error.message });
       }
     }
