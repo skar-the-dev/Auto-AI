@@ -4,6 +4,8 @@ This folder contains the separate Cloudflare Worker and Container that renders c
 
 ## Deployment
 
+The GitHub Actions deployment validates the Python renderer and the Autopilot API JavaScript before attempting deployment.
+
 Cloudflare Containers require the Workers Paid plan. The included GitHub Actions workflow deploys this Worker when files under renderer/ change.
 
 Add these GitHub repository Actions secrets:
