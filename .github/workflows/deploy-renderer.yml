@@ -8,6 +8,9 @@ on:
       - "renderer/**"
       - "functions/api/autopilot/**"
       - "functions/api/render.js"
+      - "functions/api/jobs.js"
+      - "functions/api/ideas.js"
+      - "functions/api/accounts.js"
       - ".github/workflows/deploy-renderer.yml"
       - "README.md"
 
@@ -25,3 +28,6 @@ jobs:
           node --check functions/api/autopilot/publish.js
           node --check functions/api/batch.js
           node --check functions/api/render.js
+          node --check functions/api/jobs.js
+          node --check functions/api/ideas.js
+          node --check functions/api/accounts.js
