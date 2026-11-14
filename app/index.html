@@ -350,7 +350,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
         <option value="5">5 videos</option><option value="6" selected>6 videos</option>
       </select>
     </label>
-    <label><span class="field-title">Auto AI admin key</span><input id="autopilotAdminKey" type="password" autocomplete="current-password" placeholder="Required for automatic publishing"><span class="field-hint">Used to authorise your connected YouTube channel. It stays in this browser session.</span></label>
+    
     <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Start Series Autopilot</button>
   </form>
   <div id="batchResult" class="notice batch-result" style="display:none" aria-live="polite"></div>
@@ -1223,13 +1223,10 @@ $("#batchForm").onsubmit = async event => {
   const accountId = $("#batchAccount").value;
   const account = accounts.find(item => item.id === accountId);
   const niche = $("#batchNiche").value === "__account__" ? (account?.niche || "") : $("#batchNiche").value;
-  const key = $("#autopilotAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+
   if (!accountId) { result.style.display = "block"; result.textContent = "Choose an active account first."; return; }
   if (!niche) { result.style.display = "block"; result.textContent = "Choose a content niche first."; return; }
-  if (!key) { result.style.display = "block"; result.textContent = "Enter your Auto AI admin key. It is required to publish to YouTube."; $("#autopilotAdminKey").focus(); return; }
-  if (!account.youtube) { result.style.display = "block"; result.textContent = "Connect YouTube to this account before starting Series Autopilot. TikTok is still awaiting approval."; return; }
-  sessionStorage.setItem("autoAiAdminKey", key);
-  $("#youtubeAdminKey").value = key;
+
   const count = Math.min(6, Math.max(1, Number($("#batchCount").value) || 6));
   const batchSettings = { account_id: accountId, count, niche };
   button.disabled = true;
