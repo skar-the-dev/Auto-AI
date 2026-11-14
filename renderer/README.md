@@ -10,7 +10,7 @@ Add these GitHub repository Actions secrets:
 
 - CLOUDFLARE_API_TOKEN — Cloudflare API token with permission to deploy Workers and Containers for this account.
 - CLOUDFLARE_ACCOUNT_ID — Cloudflare account ID.
-- RENDERER_API_KEY — a long random secret used to protect the renderer. Use the same value in the Pages project.
+- RENDERER_API_KEY — a long random secret used to protect the renderer. If supplied as a GitHub Actions secret, the workflow updates it on deploy. If omitted, an already-configured Worker secret is preserved. Use the same value in the Pages project.
 
 After the first successful deploy, note the Worker URL shown by Wrangler. It will look like https://auto-ai-renderer.YOUR-SUBDOMAIN.workers.dev.
 
@@ -23,11 +23,12 @@ Redeploy the Pages project after adding the two values. The /api/render Pages Fu
 
 ## Current renderer scope
 
-- Accepts generated MP3 narration and up to 20 scene captions.
-- Produces a 1080 × 1920 H.264/AAC MP4 with timed captions.
+- Accepts generated MP3 narration, up to eight scene captions and AI-generated scene artwork.
+- Produces a 1080 × 1920 H.264/AAC MP4 with scene-by-scene images, gentle camera motion and timed captions.
 - Runs FFmpeg in a Cloudflare Container, not in the user's browser.
-- Does not yet select or download scene-matched stock footage. The current background is a branded static visual with timed captions; footage licensing and scene matching remain a separate production stage.
-- The first version returns the rendered MP4 to the browser. It does not yet keep a permanent cloud video archive.
+- Series Autopilot creates original scene artwork with Cloudflare Workers AI FLUX.1 schnell; these are AI illustrations, not real-world footage or proof of an event.
+- It does not download third-party clips or bypass platform restrictions.
+- The first version returns the rendered MP4 to the calling API for direct YouTube upload. It does not yet keep a permanent cloud video archive.
 
 ## Security
 
