@@ -23,4 +23,5 @@ jobs:
         run: |
           python -m py_compile renderer/app.py
           node --check functions/api/autopilot/publish.js
+          node --check functions/api/batch.js
           node --check functions/api/render.js
