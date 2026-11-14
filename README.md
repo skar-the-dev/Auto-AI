@@ -39,6 +39,34 @@ A cloud-hosted control centre for planning short-form content across multiple Ti
 - Free tiers have usage limits. Unlimited generation, rendering, storage or always-on processing is not promised.
 - Never commit passwords, API keys, OAuth secrets or access tokens.
 
+## Series Autopilot implementation
+
+The dashboard now has a one-click Series Autopilot workflow:
+- Reuses the selected account, saved niche, optional topic clarification and a maximum batch size of six.
+- Generates narration with Workers AI Aura-2 and five original scene illustrations with FLUX.1 schnell.
+- The cloud FFmpeg renderer turns the scene illustrations, captions and narration into a vertical MP4.
+- Uploads the first video immediately to the connected YouTube channel and schedules the remaining videos four hours apart.
+- Blocks automatic public publishing when the generated script's factual claims do not have source support.
+- TikTok publishing is intentionally not included until TikTok developer approval is complete.
+
+The current generated visuals are AI-created illustrations with camera motion, not downloaded stock footage or genuine recordings of real events.
+
+## Deployment requirements for Series Autopilot
+
+The Pages dashboard and API deploy from the connected GitHub branch. The separate FFmpeg renderer is a Cloudflare Worker/Container deployed by `.github/workflows/deploy-renderer.yml`.
+
+Required GitHub repository Actions secrets:
+- `CLOUDFLARE_API_TOKEN`: Cloudflare API token with Workers Editor / Workers Scripts Edit permission for this account.
+- `CLOUDFLARE_ACCOUNT_ID`: Cloudflare account ID.
+- `RENDERER_API_KEY`: a long random secret protecting the renderer.
+
+Required Cloudflare Pages Production secrets/variables:
+- `VIDEO_RENDERER_URL`: deployed renderer Worker URL, without `/render`.
+- `VIDEO_RENDERER_KEY`: same value as GitHub Actions `RENDERER_API_KEY`.
+- `AUTO_AI_ADMIN_KEY`, YouTube OAuth credentials and `TOKEN_ENCRYPTION_KEY` as described below.
+
+Cloudflare Containers require a Workers Paid plan. Workers AI has a daily free allocation, but image generation, narration and script generation remain subject to Cloudflare's model limits and quotas. A six-video batch may be limited by the remaining daily allowance.
+
 ## YouTube OAuth integration (in progress)
 
 The feature branch `feature/youtube-oauth-integration` adds the first secure channel-connection flow. It is not active on the production site until reviewed, merged and deployed.
