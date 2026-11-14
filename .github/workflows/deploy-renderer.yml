@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "renderer/**"
+      - "tests/**"
       - "functions/api/autopilot/**"
       - "functions/api/render.js"
       - "functions/api/jobs.js"
