@@ -7,7 +7,7 @@ MAX_IMAGE = 5 * 1024 * 1024
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 def clean_text(value, limit=300):
-    value = re.sub(r"[\\r\\n\\t]+", " ", str(value or ""))
+    value = re.sub(r"[\r\n\t]+", " ", str(value or ""))
     return value[:limit].strip()
 
 def srt_time(seconds):
@@ -88,9 +88,9 @@ class Handler(BaseHTTPRequestHandler):
                     end = min(duration, cursor)
                     caption = scene["text"] or ""
                     if caption:
-                        entries.append(f"{i}\\n{srt_time(start)} --> {srt_time(end)}\\n{caption}\\n")
+                        entries.append(f"{i}\n{srt_time(start)} --> {srt_time(end)}\n{caption}\n")
                     segments.append(max(0.2, end - start))
-                srt_path.write_text("\\n".join(entries), encoding="utf-8")
+                srt_path.write_text("\n".join(entries), encoding="utf-8")
 
                 if len(images) >= len(scenes):
                     for index, image in enumerate(images[:len(scenes)]):
