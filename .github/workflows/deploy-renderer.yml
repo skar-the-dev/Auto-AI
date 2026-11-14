@@ -25,11 +25,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           RENDERER_API_KEY: ${{ secrets.RENDERER_API_KEY }}
         run: |
-          if [ -n "$RENDERER_API_KEY" ]; then
-            printf '%s' "$RENDERER_API_KEY" | npx wrangler secret put RENDERER_API_KEY
-          else
-            echo "RENDERER_API_KEY GitHub secret is not set; preserving any existing Worker secret."
-          fi
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub Actions secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing GitHub Actions secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          test -n "$RENDERER_API_KEY" || { echo "Missing GitHub Actions secret: RENDERER_API_KEY"; exit 1; }
+          printf '%s' "$RENDERER_API_KEY" | npx wrangler secret put RENDERER_API_KEY
       - name: Deploy Cloudflare Container and Worker
         working-directory: renderer
         env:
