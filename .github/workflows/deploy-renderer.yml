@@ -25,8 +25,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           RENDERER_API_KEY: ${{ secrets.RENDERER_API_KEY }}
         run: |
-          test -n "$RENDERER_API_KEY"
-          printf '%s' "$RENDERER_API_KEY" | npx wrangler secret put RENDERER_API_KEY
+          if [ -n "$RENDERER_API_KEY" ]; then
+            printf '%s' "$RENDERER_API_KEY" | npx wrangler secret put RENDERER_API_KEY
+          else
+            echo "RENDERER_API_KEY GitHub secret is not set; preserving any existing Worker secret."
+          fi
       - name: Deploy Cloudflare Container and Worker
         working-directory: renderer
         env:
