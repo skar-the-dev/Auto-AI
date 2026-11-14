@@ -4,8 +4,8 @@ import os
 import subprocess
 import tempfile
 import time
-import urllib.error
 import urllib.request
+import urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,13 +57,28 @@ def main():
                 headers={"Content-Type": "application/json"},
                 method="POST"
             )
-            with urllib.request.urlopen(request, timeout=90) as response:
-                video = response.read()
-                if response.status != 200 or not video.startswith(b"\\x00\\x00\\x00"):
-                    raise RuntimeError("Renderer did not return a valid MP4 response.")
-                if len(video) < 1000:
-                    raise RuntimeError("Rendered MP4 was unexpectedly small.")
-            print(f"Renderer integration test passed ({len(video)} bytes).")
+            try:
+                with urllib.request.urlopen(request, timeout=90) as response:
+                    video = response.read()
+                    if response.status != 200:
+                        raise RuntimeError(f"Renderer returned HTTP {response.status}.")
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode("utf-8", errors="replace")
+                raise RuntimeError(f"Renderer returned HTTP {error.code}: {detail[:1200]}") from error
+
+            video_path = tmp_path / "rendered.mp4"
+            video_path.write_bytes(video)
+            if len(video) < 1000:
+                raise RuntimeError("Rendered MP4 was unexpectedly small.")
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=format_name,duration",
+                 "-of", "json", str(video_path)],
+                check=True, capture_output=True, text=True
+            )
+            metadata = json.loads(probe.stdout).get("format", {})
+            if "mp4" not in metadata.get("format_name", "") or float(metadata.get("duration", 0)) <= 0:
+                raise RuntimeError("FFprobe could not verify a valid MP4 with a positive duration.")
+            print(f"Renderer integration test passed ({len(video)} bytes, {metadata['duration']} seconds).")
         finally:
             server.terminate()
             try:
