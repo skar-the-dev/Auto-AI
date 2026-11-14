@@ -2,11 +2,12 @@ import base64, json, os, re, subprocess, tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-MAX_BODY = 14 * 1024 * 1024
+MAX_BODY = 22 * 1024 * 1024
+MAX_IMAGE = 5 * 1024 * 1024
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 def clean_text(value, limit=300):
-    value = re.sub(r"[\r\n\t]+", " ", str(value or ""))
+    value = re.sub(r"[\\r\\n\\t]+", " ", str(value or ""))
     return value[:limit].strip()
 
 def srt_time(seconds):
@@ -28,43 +29,110 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if length <= 0 or length > MAX_BODY:
-                return self.reply(413, b'{"error":"Render request must be under 14 MB."}', "application/json")
+                return self.reply(413, b'{"error":"Render request must be under 22 MB."}', "application/json")
             payload = json.loads(self.rfile.read(length))
-            scenes = payload.get("scenes") or []
+            raw_scenes = payload.get("scenes") or []
             audio = base64.b64decode(payload.get("audio_base64", ""), validate=True)
             if not audio or len(audio) > 10 * 1024 * 1024:
                 return self.reply(400, b'{"error":"A valid voiceover MP3 under 10 MB is required."}', "application/json")
-            scenes = [clean_text(x, 260).replace("-->", "—>") for x in scenes if clean_text(x, 260)]
+
+            scenes = []
+            for item in raw_scenes[:8]:
+                if isinstance(item, dict):
+                    visual = clean_text(item.get("visual", ""), 260)
+                    caption = clean_text(item.get("text", ""), 180)
+                    scenes.append({"visual": visual, "text": caption})
+                else:
+                    value = clean_text(item, 260)
+                    scenes.append({"visual": value, "text": value})
             if not scenes:
-                scenes = [clean_text(payload.get("title", "Auto AI video"), 100)]
-            scenes = scenes[:20]
+                scenes = [{"visual": clean_text(payload.get("title", "Auto AI video"), 100), "text": ""}]
+
+            raw_images = payload.get("scene_images") or []
+            images = []
+            for value in raw_images[:len(scenes)]:
+                if not isinstance(value, str):
+                    continue
+                decoded = base64.b64decode(value, validate=True)
+                if not decoded or len(decoded) > MAX_IMAGE:
+                    raise ValueError("A generated scene image was empty or exceeded 5 MB.")
+                images.append(decoded)
+
             title = clean_text(payload.get("title", "Auto AI"), 100)
             with tempfile.TemporaryDirectory() as tmp:
-                audio_path = Path(tmp) / "voice.mp3"
-                srt_path = Path(tmp) / "captions.srt"
-                title_path = Path(tmp) / "title.txt"
-                out_path = Path(tmp) / "render.mp4"
+                root = Path(tmp)
+                audio_path = root / "voice.mp3"
+                srt_path = root / "captions.srt"
+                title_path = root / "title.txt"
+                out_path = root / "render.mp4"
                 audio_path.write_bytes(audio)
                 title_path.write_text(title.replace("'", "’"), encoding="utf-8")
-                probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)], capture_output=True, text=True, timeout=20)
+
+                probe = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
+                    capture_output=True, text=True, timeout=20
+                )
                 duration = float(probe.stdout.strip())
                 if duration <= 0 or duration > 180:
                     return self.reply(400, b'{"error":"Voiceover duration must be between 1 and 180 seconds."}', "application/json")
-                weights = [max(1, len(x.split())) for x in scenes]
+
+                weights = [max(1, len((scene["text"] or scene["visual"]).split())) for scene in scenes]
                 total = sum(weights)
                 cursor = 0.0
                 entries = []
+                segments = []
                 for i, (scene, weight) in enumerate(zip(scenes, weights), 1):
                     start = cursor
                     cursor += duration * weight / total
                     end = min(duration, cursor)
-                    entries.append(f"{i}\n{srt_time(start)} --> {srt_time(end)}\n{scene}\n")
-                srt_path.write_text("\n".join(entries), encoding="utf-8")
-                vf = f"drawtext=fontfile={FONT}:textfile={title_path}:fontcolor=0x9DB6FF:fontsize=44:x=(w-text_w)/2:y=110,subtitles={srt_path}:force_style='FontName=DejaVu Sans,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=250'"
-                cmd = ["ffmpeg","-y","-f","lavfi","-i",f"color=c=0x101A30:s=1080x1920:r=30:d={duration:.3f}","-i",str(audio_path),"-vf",vf,"-c:v","libx264","-preset","veryfast","-tune","stillimage","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-shortest","-movflags","+faststart",str(out_path)]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
+                    caption = scene["text"] or ""
+                    if caption:
+                        entries.append(f"{i}\\n{srt_time(start)} --> {srt_time(end)}\\n{caption}\\n")
+                    segments.append(max(0.2, end - start))
+                srt_path.write_text("\\n".join(entries), encoding="utf-8")
+
+                if len(images) >= len(scenes):
+                    for index, image in enumerate(images[:len(scenes)]):
+                        (root / f"scene_{index}.jpg").write_bytes(image)
+                    command = ["ffmpeg", "-y"]
+                    filters = []
+                    video_labels = []
+                    for index, segment in enumerate(segments):
+                        command.extend(["-loop", "1", "-framerate", "30", "-t", f"{segment:.3f}", "-i", str(root / f"scene_{index}.jpg")])
+                        label = f"v{index}"
+                        filters.append(
+                            f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+                            f"crop=1080:1920,zoompan=z='min(zoom+0.00035,1.08)':d=1:"
+                            f"s=1080x1920:fps=30,setsar=1,format=yuv420p[{label}]"
+                        )
+                        video_labels.append(f"[{label}]")
+                    audio_index = len(scenes)
+                    command.extend(["-i", str(audio_path)])
+                    filters.append("".join(video_labels) + f"concat=n={len(scenes)}:v=1:a=0,format=yuv420p,drawtext=fontfile={FONT}:textfile={title_path}:fontcolor=0x9DB6FF:fontsize=44:x=(w-text_w)/2:y=110[base]")
+                    caption_style = "FontName=DejaVu Sans,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=250"
+                    filters.append(f"[base]subtitles={srt_path}:force_style='{caption_style}'[vout]")
+                    command.extend([
+                        "-filter_complex", ";".join(filters), "-map", "[vout]", "-map", f"{audio_index}:a:0",
+                        "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "160k", "-shortest", "-t", f"{duration:.3f}",
+                        "-movflags", "+faststart", str(out_path)
+                    ])
+                else:
+                    srt_path.write_text("\\n".join(entries), encoding="utf-8")
+                    vf = f"drawtext=fontfile={FONT}:textfile={title_path}:fontcolor=0x9DB6FF:fontsize=44:x=(w-text_w)/2:y=110,subtitles={srt_path}:force_style='FontName=DejaVu Sans,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=250'"
+                    command = [
+                        "ffmpeg", "-y", "-f", "lavfi", "-i",
+                        f"color=c=0x101A30:s=1080x1920:r=30:d={duration:.3f}",
+                        "-i", str(audio_path), "-vf", vf, "-c:v", "libx264",
+                        "-preset", "veryfast", "-tune", "stillimage", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags",
+                        "+faststart", str(out_path)
+                    ]
+
+                result = subprocess.run(command, capture_output=True, text=True, timeout=300)
                 if result.returncode != 0:
-                    raise RuntimeError((result.stderr or "FFmpeg render failed")[-1600:])
+                    raise RuntimeError((result.stderr or "FFmpeg render failed")[-1800:])
                 video = out_path.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "video/mp4")
