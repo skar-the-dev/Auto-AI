@@ -18,6 +18,12 @@ jobs:
       - name: Install renderer dependencies
         working-directory: renderer
         run: npm install
+      - name: Validate Autopilot API and renderer syntax
+        working-directory: renderer
+        run: |
+          python -m py_compile app.py
+          node --check ../functions/api/autopilot/publish.js
+          node --check ../functions/api/render.js
       - name: Set renderer API secret
         working-directory: renderer
         env:
