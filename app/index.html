@@ -308,8 +308,8 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
   <div class="batch-heading">
     <div>
       <span class="eyebrow">YOUR CONTENT WORKFLOW</span>
-      <h2>Content Engine</h2>
-      <p class="batch-intro">Choose your niche and let Auto AI find a topic for you, or enter your own idea. Then create your script drafts.</p>
+      <h2>Series Autopilot</h2>
+      <p class="batch-intro">Choose a channel and niche, then press once. Auto AI creates up to six scripts, generates narration, renders each video and sends them to YouTube automatically. No scene picking or preview approval.</p>
     </div>
     <span class="tag">Up to 6 videos</span>
   </div>
@@ -347,22 +347,23 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
         <option value="5">5 videos</option><option value="6" selected>6 videos</option>
       </select>
     </label>
-    <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Generate scripts</button>
+    <label><span class="field-title">Auto AI admin key</span><input id="autopilotAdminKey" type="password" autocomplete="current-password" placeholder="Required for automatic publishing"><span class="field-hint">Used to authorise your connected YouTube channel. It stays in this browser session.</span></label>
+    <button type="submit" id="batchButton" class="batch-generate"><span>✦</span> Start Series Autopilot</button>
   </form>
   <div id="batchResult" class="notice batch-result" style="display:none" aria-live="polite"></div>
-  <div id="batchDraftReview" style="display:none;margin-top:18px">
+  <div id="batchDraftReview" style="display:none;margin-top:18px" hidden>
     <div class="row"><h3>Review your new scripts</h3><span class="tag">Edit before production</span></div>
     <p class="muted">Check each draft, make any changes, then add the scripts you approve to Production Progress.</p>
     <div id="batchDraftCards" class="grid"></div>
   </div>
   <div class="subpanel" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line,#26344a)">
     <div class="row"><h3>Production progress</h3><span class="tag" id="jobCount">0 waiting</span></div>
-    <p class="muted">Track scripts waiting for the video-rendering stage. Video rendering is not automated yet.</p>
+    <p class="muted">Series Autopilot handles narration, rendering and YouTube publishing for each generated video.</p>
     <div id="productionQueue" class="grid"><div class="muted">Loading production queue...</div></div>
   </div>
 </section>
 
-<section class="panel" id="videoCreatorPanel" style="margin-top:24px">
+<section class="panel" id="videoCreatorPanel" style="display:none;margin-top:24px">
   <div class="row"><h2>Video Creator</h2><span class="tag">Voice + video assembly</span></div>
   <p>Turn a saved script into a vertical video with AI narration and animated scene captions. Auto AI generates narration and sends it to the cloud renderer to create a 1080 × 1920 MP4.</p>
   <label>Saved script
@@ -465,11 +466,7 @@ video {box-shadow:0 12px 34px rgba(0,0,0,.3)}
 </div>
 
 </section>
-</section>\n\n<p class="muted" style="margin-top:24px">
-  Auto AI cloud account dashboard. Video generation,
-  automated scheduling and social publishing still
-  need their separate integrations.
-</p>
+</section>\n\n<p class="muted" style="margin-top:24px">Auto AI Series Autopilot. YouTube publishing is automated for connected channels; TikTok will be added once developer approval is complete.</p>
 
 </main>
 
@@ -1220,56 +1217,104 @@ $("#batchForm").onsubmit = async event => {
   const button = $("#batchButton");
   const result = $("#batchResult");
   let topic = $("#batchTopic").value.trim();
-  const niche = $("#batchNiche").value === "__account__"
-    ? (accounts.find(account => account.id === $("#batchAccount").value)?.niche || "")
-    : $("#batchNiche").value;
-  if (!$("#batchAccount").value) { result.style.display = "block"; result.textContent = "Choose an active account first."; return; }
+  const accountId = $("#batchAccount").value;
+  const account = accounts.find(item => item.id === accountId);
+  const niche = $("#batchNiche").value === "__account__" ? (account?.niche || "") : $("#batchNiche").value;
+  const key = $("#autopilotAdminKey").value.trim() || sessionStorage.getItem("autoAiAdminKey") || "";
+  if (!accountId) { result.style.display = "block"; result.textContent = "Choose an active account first."; return; }
   if (!niche) { result.style.display = "block"; result.textContent = "Choose a content niche first."; return; }
-  const batchSettings = { account_id: $("#batchAccount").value, count: Number($("#batchCount").value), niche };
+  if (!key) { result.style.display = "block"; result.textContent = "Enter your Auto AI admin key. It is required to publish to YouTube."; $("#autopilotAdminKey").focus(); return; }
+  if (!account.youtube) { result.style.display = "block"; result.textContent = "Connect YouTube to this account before starting Series Autopilot. TikTok is still awaiting approval."; return; }
+  sessionStorage.setItem("autoAiAdminKey", key);
+  $("#youtubeAdminKey").value = key;
+  const count = Math.min(6, Math.max(1, Number($("#batchCount").value) || 6));
+  const batchSettings = { account_id: accountId, count, niche };
   button.disabled = true;
-  button.textContent = topic ? "Understanding topic..." : "Finding a topic...";
+  button.textContent = topic ? "Understanding your topic..." : "Finding your series topic...";
   result.style.display = "block";
-  result.textContent = topic ? "Auto AI is checking what you mean before creating anything..." : "Auto AI is finding a fresh topic in your selected niche...";
+  result.replaceChildren();
+  const status = document.createElement("p");
+  status.textContent = topic ? "Auto AI is checking what you mean..." : "Auto AI is finding a fresh topic for " + account.name + "...";
+  result.append(status);
   try {
     const clarification = topic
       ? await apiRequest("/api/batch", { method: "POST", body: JSON.stringify({ mode: "clarify", topic }) })
       : { understood_topic: "", needs_clarification: false, options: [] };
     let selectedMeaning = clarification.understood_topic || topic;
     if (clarification.needs_clarification) {
-      result.replaceChildren();
       const heading = document.createElement("h3"); heading.textContent = "Quick clarification";
-      const prompt = document.createElement("p"); prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?"; prompt.style.fontWeight = "700";
-      const options = document.createElement("div"); options.style.display = "grid"; options.style.gap = "9px";
+      const prompt = document.createElement("p"); prompt.textContent = clarification.clarifying_question || "Which meaning did you have in mind?";
+      const choices = document.createElement("div"); choices.style.display = "grid"; choices.style.gap = "9px";
       const chosen = new Promise(resolve => {
         clarification.options.forEach(option => {
-          const choice = document.createElement("button"); choice.type = "button"; choice.textContent = option; choice.onclick = () => resolve(option); options.append(choice);
+          const choice = document.createElement("button"); choice.type = "button"; choice.textContent = option; choice.onclick = () => resolve(option); choices.append(choice);
         });
-        const customWrap = document.createElement("div"); customWrap.style.display = "grid"; customWrap.style.gap = "8px";
         const custom = document.createElement("input"); custom.maxLength = 500; custom.placeholder = "Or type what you mean...";
         const customButton = document.createElement("button"); customButton.type = "button"; customButton.className = "secondary"; customButton.textContent = "Use my explanation";
         customButton.onclick = () => { if (custom.value.trim()) resolve(custom.value.trim()); };
-        customWrap.append(custom, customButton); options.append(customWrap);
+        choices.append(custom, customButton);
       });
-      result.append(heading, prompt, options); button.style.display = "none"; selectedMeaning = await chosen;
+      result.replaceChildren(heading, prompt, choices);
+      selectedMeaning = await chosen;
     }
-    button.textContent = "Creating drafts...";
-    result.textContent = topic ? "Creating your batch..." : "Creating scripts for the topic Auto AI discovered...";
-    const data = await apiRequest("/api/batch", {
+    button.textContent = "Creating your videos...";
+    result.textContent = "Generating up to " + count + " scripts for " + account.name + "...";
+    const batch = await apiRequest("/api/batch", {
       method: "POST",
       body: JSON.stringify({ ...batchSettings, topic, understood_topic: clarification.understood_topic || topic, clarification: clarification.needs_clarification ? selectedMeaning : "" })
     });
-    topic = data.topic || topic;
-    result.textContent = data.topic_discovery
-      ? "Auto AI chose: " + topic + ". " + data.topic_discovery.reason + " " + data.message
-      : data.message + " Topic understood as: " + selectedMeaning + ". Review your drafts in Video Library.";
-    await loadScriptLibrary(); renderBatchDraftReview(data.created || []);
+    await loadScriptLibrary();
+    const completed = [];
+    const failed = [];
+    for (let i = 0; i < (batch.created || []).length; i++) {
+      const item = batch.created[i];
+      result.textContent = "Series Autopilot: producing video " + (i + 1) + " of " + batch.created.length + " — " + item.title + ".";
+      const publishAt = i === 0 ? null : new Date(Date.now() + i * 240 * 60 * 1000).toISOString();
+      try {
+        const response = await fetch("/api/autopilot/publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": key },
+          body: JSON.stringify({ account_id: accountId, script_id: item.id, publish_at: publishAt })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) throw new Error(data.error || "Publishing failed.");
+        completed.push(data);
+      } catch (error) {
+        failed.push({ title: item.title, error: error.message });
+      }
+    }
+    result.replaceChildren();
+    const summary = document.createElement("strong");
+    summary.textContent = completed.length + " of " + batch.created.length + " videos processed.";
+    result.append(summary);
+    completed.forEach(item => {
+      const line = document.createElement("p");
+      line.textContent = item.status + ": " + item.title + (item.publish_at ? " — " + new Date(item.publish_at).toLocaleString() : " — published now") + " ";
+      const link = document.createElement("a"); link.href = item.url; link.target = "_blank"; link.rel = "noopener"; link.textContent = "Open on YouTube";
+      line.append(link); result.append(line);
+    });
+    failed.forEach(item => {
+      const line = document.createElement("p"); line.className = "error"; line.textContent = "Not published — " + item.title + ": " + item.error; result.append(line);
+    });
+    if (completed.length) showMessage("Series Autopilot processed " + completed.length + " video(s) for " + account.name + ".");
+    await loadYoutubeUploadHistoryForAutopilot(accountId, key);
   } catch (error) {
-    result.textContent = "Batch could not be created: " + error.message;
+    result.textContent = "Series Autopilot could not start: " + error.message;
   } finally {
-    button.disabled = false; button.style.display = ""; button.textContent = "Generate scripts";
+    button.disabled = false;
+    button.textContent = "✦ Start Series Autopilot";
   }
 };
 
+async function loadYoutubeUploadHistoryForAutopilot(accountId, key) {
+  const target = $("#youtubeUploadHistory");
+  if (!target) return;
+  try {
+    const response = await fetch("/api/youtube/upload?account_id=" + encodeURIComponent(accountId), { headers: { "x-auto-ai-admin-key": key } });
+    const data = await youtubeApiData(response);
+    target.textContent = (data.uploads || []).length + " upload record(s) for this channel. Refresh to see details.";
+  } catch {}
+}
 
 
 function openRenderedVideoDB() {
