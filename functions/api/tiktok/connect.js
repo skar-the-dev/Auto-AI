@@ -20,7 +20,7 @@ export async function onRequestPost({ request, env }) {
     url.search = new URLSearchParams({
       client_key: env.TIKTOK_CLIENT_KEY,
       response_type: "code",
-      scope: "user.info.basic",
+      scope: "user.info.basic,video.publish",
       redirect_uri: tiktokRedirectUri(request, env),
       state
     }).toString();
