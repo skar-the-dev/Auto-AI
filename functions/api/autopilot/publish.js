@@ -87,7 +87,7 @@ export async function onRequestPost({ request, env }) {
         "This exact scene: " + String(scene.visual || scene.text || row.topic).slice(0, 500),
         "Use a clear central subject, strong composition, rich lighting and visual depth. Portrait-oriented composition with important details near the centre so it can be cropped to 9:16.",
         "Editorial illustration, not documentary evidence. Do not include words, letters, numbers, captions, logos, watermarks, UI, or recognisable real people."
-      ].join("\\n").slice(0, 2000);
+      ].join("\n").slice(0, 2000);
       const generated = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt, steps: 4 });
       if (!generated || typeof generated.image !== "string" || !generated.image.length) {
         throw new Error("AI image generation failed for scene " + (index + 1) + ".");
