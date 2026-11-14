@@ -8,6 +8,8 @@ on:
       - "renderer/**"
       - "functions/api/autopilot/**"
       - "functions/api/render.js"
+      - ".github/workflows/deploy-renderer.yml"
+      - "README.md"
 
 jobs:
   validate:
