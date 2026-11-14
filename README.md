@@ -51,21 +51,20 @@ The dashboard now has a one-click Series Autopilot workflow:
 
 The current generated visuals are AI-created illustrations with camera motion, not downloaded stock footage or genuine recordings of real events.
 
-## Deployment requirements for Series Autopilot
+## Free-tier deployment plan
 
-The Pages dashboard and API deploy from the connected GitHub branch. The separate FFmpeg renderer is a Cloudflare Worker/Container deployed by `.github/workflows/deploy-renderer.yml`.
+Auto AI is being kept on a no-paid-plan architecture. The Cloudflare Container deployment has been removed; the repository workflow now runs syntax checks only and does not attempt to deploy a paid Cloudflare service.
 
-Required GitHub repository Actions secrets:
-- `CLOUDFLARE_API_TOKEN`: Cloudflare API token with Workers Editor / Workers Scripts Edit permission for this account.
-- `CLOUDFLARE_ACCOUNT_ID`: Cloudflare account ID.
-- `RENDERER_API_KEY`: a long random secret protecting the renderer.
+Planned free-tier processing architecture:
+- Cloudflare Pages and D1 for the dashboard, API and job metadata.
+- Cloudflare Workers AI within the free daily allocation, subject to model availability and quotas.
+- Cloudflare R2 Standard storage within its free monthly allowance for temporary audio, images and finished videos.
+- GitHub Actions standard runners for this public repository to run FFmpeg and process queued videos. GitHub documents standard hosted runner use as free for public repositories.
+- Official YouTube OAuth/API publishing, subject to Google's API quota and app verification/testing requirements.
 
-Required Cloudflare Pages Production secrets/variables:
-- `VIDEO_RENDERER_URL`: deployed renderer Worker URL, without `/render`.
-- `VIDEO_RENDERER_KEY`: same value as GitHub Actions `RENDERER_API_KEY`.
-- `AUTO_AI_ADMIN_KEY`, YouTube OAuth credentials and `TOKEN_ENCRYPTION_KEY` as described below.
+No paid Cloudflare Workers plan or Cloudflare Container is required for this design. R2 and Workers AI still have free usage limits; if those limits are reached, generation pauses until the allowance resets rather than switching to a paid plan.
 
-Cloudflare Containers require a Workers Paid plan. Workers AI has a daily free allocation, but image generation, narration and script generation remain subject to Cloudflare's model limits and quotas. A six-video batch may be limited by the remaining daily allowance.
+The GitHub Actions rendering and queue hand-off are still being built. Do not add Cloudflare billing details, upgrade a plan, or create paid resources for Auto AI.
 
 ## YouTube OAuth integration (in progress)
 
