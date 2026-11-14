@@ -22,6 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Validate renderer and API syntax
         run: |
           python -m py_compile renderer/app.py
@@ -31,3 +35,5 @@ jobs:
           node --check functions/api/jobs.js
           node --check functions/api/ideas.js
           node --check functions/api/accounts.js
+      - name: Test a real MP4 render
+        run: python tests/test_renderer.py
