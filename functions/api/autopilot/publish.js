@@ -78,13 +78,32 @@ export async function onRequestPost({ request, env }) {
     else throw new Error("AI voiceover generation returned an unsupported format.");
     if (!audioBytes.length || audioBytes.length > 10 * 1024 * 1024) throw new Error("Generated voiceover is empty or too large.");
 
+    const scenePlan = script.scenes.slice(0, 5);
+    const sceneImages = await Promise.all(scenePlan.map(async (scene, index) => {
+      const prompt = [
+        "Create a cinematic, high-quality visual for a vertical short-form video.",
+        "Topic: " + String(row.topic).slice(0, 180),
+        "Niche: " + String(row.niche).slice(0, 100),
+        "This exact scene: " + String(scene.visual || scene.text || row.topic).slice(0, 500),
+        "Use a clear central subject, strong composition, rich lighting and visual depth. Portrait-oriented composition with important details near the centre so it can be cropped to 9:16.",
+        "Editorial illustration, not documentary evidence. Do not include words, letters, numbers, captions, logos, watermarks, UI, or recognisable real people."
+      ].join("\\n").slice(0, 2000);
+      const generated = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt, steps: 4 });
+      if (!generated || typeof generated.image !== "string" || !generated.image.length) {
+        throw new Error("AI image generation failed for scene " + (index + 1) + ".");
+      }
+      if (generated.image.length > 6000000) throw new Error("Generated scene " + (index + 1) + " image exceeded the upload size limit.");
+      return generated.image;
+    }));
+
     const renderUrl = new URL("/api/render", request.url);
     const renderResponse = await fetch(renderUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-auto-ai-admin-key": request.headers.get("x-auto-ai-admin-key") || "" },
       body: JSON.stringify({
         title: row.title,
-        scenes: script.scenes.slice(0, 5).map(scene => [scene.visual, scene.text].filter(Boolean).join(" — ").slice(0, 260)),
+        scenes: scenePlan.map(scene => ({ visual: String(scene.visual || "").slice(0, 260), text: String(scene.text || "").slice(0, 180) })),
+        scene_images: sceneImages,
         audio_base64: base64(audioBytes)
       })
     });
